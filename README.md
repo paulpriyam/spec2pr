@@ -1,4 +1,4 @@
-# feature-factory
+# spec2pr
 
 A Claude Code plugin that takes a feature from a Jira ticket, a GitHub issue or a one-line idea to a
 reviewed, tested pull request, using the **Elephant–Goldfish** model.
@@ -40,8 +40,8 @@ Requirements: [Claude Code](https://claude.com/claude-code), `git`, `jq`, `pytho
 connectors in Claude Code.
 
 ```bash
-claude plugin marketplace add paulpriyam/feature-factory
-claude plugin install feature-factory@feature-factory
+claude plugin marketplace add paulpriyam/spec2pr
+claude plugin install spec2pr@spec2pr
 ```
 
 Restart Claude Code, then in the repo you want to work on:
@@ -59,14 +59,14 @@ Optional:
 - **Status line:** see [Monitoring](#monitoring).
 - **Clickable notifications on macOS:** `brew install terminal-notifier`.
 
-To try it without installing: `git clone https://github.com/paulpriyam/feature-factory` and run
-`claude --plugin-dir ./feature-factory`.
+To try it without installing: `git clone https://github.com/paulpriyam/spec2pr` and run
+`claude --plugin-dir ./spec2pr`.
 
-**Updating:** `claude plugin marketplace update feature-factory && claude plugin update feature-factory@feature-factory`,
+**Updating:** `claude plugin marketplace update spec2pr && claude plugin update spec2pr@spec2pr`,
 then restart Claude Code.
 
 **What stays on your machine:** each repo's `.agent-state/` (feature progress, git-ignored),
-`.ff-worktrees/` (feature working copies) and `~/.feature-factory/` (dashboard project list, testing
+`.ff-worktrees/` (feature working copies) and `~/.spec2pr/` (dashboard project list, testing
 tools). To move a feature to another machine, push its branch and run `/ship-feature KEY --adopt` there.
 
 ## Contents
@@ -123,7 +123,7 @@ platform is needed you're asked once whether to install them; or do it yourself:
 `scripts/verify-env.sh check` shows what's ready, and `scripts/verify-env.sh setup web|extension|android|ios`
 installs it. Android needs Android Studio with an emulator, and iOS needs Xcode, both installed by
 you. Maestro needs Java 17+: setup uses Android Studio's bundled Java if present, otherwise it
-downloads Eclipse Temurin 17 into `~/.feature-factory/jdk` (no Homebrew or admin rights needed).
+downloads Eclipse Temurin 17 into `~/.spec2pr/jdk` (no Homebrew or admin rights needed).
 
 **Verify first, decide after.** In the middle of a feature, run `/verify-feature` (or
 `/verify-feature <name>`). It finds or writes the spec, checks what is built so far in the running app,
@@ -147,7 +147,7 @@ Use `--here` to work in the current checkout instead; `--adopt` always works in 
 
 - **Live dashboard:** opens automatically when you run `/ship-feature` (opt out with `--no-dashboard`
   or `FF_DASHBOARD=off`). Reopen with `/feature-dashboard` or `scripts/dashboard.sh`. One server shows
-  every project you've run `/ship-feature` in (registered in `~/.feature-factory/repos.txt`), but it opens
+  every project you've run `/ship-feature` in (registered in `~/.spec2pr/repos.txt`), but it opens
   on the project you launched it from (http://127.0.0.1:7788/?repo=<path>); use the Project selector to
   switch or pick "All projects". If the running server is older than the installed plugin, it is restarted
   automatically. To drop an old project from the list, delete its line in `repos.txt`. It refreshes every

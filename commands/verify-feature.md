@@ -3,7 +3,7 @@ description: Check work in progress in the running app (web, Chrome extension, A
 argument-hint: [KEY | feature-name] [--spec <dir>] [--platform web|extension|android|ios] [--url <already running app>] [--base <branch>]
 model: opus
 ---
-# feature-factory: verify first, decide after
+# spec2pr: verify first, decide after
 
 Arguments: $ARGUMENTS
 

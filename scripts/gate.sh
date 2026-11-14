@@ -13,7 +13,7 @@ key=$(ff_key "$root" "$cwd" "$sid" "$cmd")
 [ -n "$key" ] || exit 0
 
 state="$root/.agent-state/$key.json"
-[ -f "$state" ] || { echo "feature-factory: no state file for $key; cannot verify gates." >&2; exit 2; }
+[ -f "$state" ] || { echo "spec2pr: no state file for $key; cannot verify gates." >&2; exit 2; }
 
 missing=()
 for gate in guardian tester reviewer; do
@@ -26,7 +26,7 @@ if [ "$(jq -r '.verdicts | has("verifier")' "$state")" = "true" ]; then
   [ "$v" = "PASS" ] || [ "$v" = "SKIP" ] || missing+=("app-check=$v")
 fi
 if [ ${#missing[@]} -gt 0 ]; then
-  echo "feature-factory gate: $key is not ready to commit/PR. Not passed: ${missing[*]}. Run the missing steps first." >&2
+  echo "spec2pr gate: $key is not ready to commit/PR. Not passed: ${missing[*]}. Run the missing steps first." >&2
   exit 2
 fi
 exit 0

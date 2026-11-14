@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared helpers for feature-factory scripts. Source it: . "$(dirname "$0")/lib.sh"
+# Shared helpers for spec2pr scripts. Source it: . "$(dirname "$0")/lib.sh"
 #
 # State always lives in the MAIN checkout's .agent-state/, even when work happens in a feature
 # worktree (<root>/.ff-worktrees/<KEY>), so the dashboard, the commit gate and every session agree.

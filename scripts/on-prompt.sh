@@ -7,8 +7,8 @@ input=$(cat)
 prompt=$(jq -r '.prompt // ""' <<<"$input")
 cwd=$(jq -r '.cwd // "."' <<<"$input")
 sid=$(jq -r '.session_id // ""' <<<"$input")
-first=$(sed -nE '1s#^[[:space:]]*/(feature-factory:)?(ship|verify)-feature[[:space:]]+([^[:space:]]+).*#\3#p' <<<"$prompt")
-grep -Eq '^[[:space:]]*/(feature-factory:)?(ship|verify)-feature([[:space:]]|$)' <<<"$prompt" || exit 0
+first=$(sed -nE '1s#^[[:space:]]*/((spec2pr|spec2pr):)?(ship|verify)-feature[[:space:]]+([^[:space:]]+).*#\4#p' <<<"$prompt")
+grep -Eq '^[[:space:]]*/((spec2pr|spec2pr):)?(ship|verify)-feature([[:space:]]|$)' <<<"$prompt" || exit 0
 root=$(ff_root "$cwd")
 if [ -n "$first" ] && [ -n "$sid" ] && [ "${first#--}" = "$first" ]; then
   key=$(ff_key_from_arg "$first")

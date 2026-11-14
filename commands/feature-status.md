@@ -1,5 +1,5 @@
 ---
-description: Show where the current feature-factory pipeline is - phase, verdicts, loops and recent agent events
+description: Show where the current spec2pr pipeline is - phase, verdicts, loops and recent agent events
 argument-hint: [JIRA-KEY]
 model: haiku
 allowed-tools: Bash(cat:*), Bash(jq:*), Bash(tail:*), Bash(ls:*), Bash(git rev-parse:*)

@@ -1,5 +1,5 @@
 // Playwright helper for the app-verifier agent (web pages and Chrome extensions).
-// Playwright itself lives in ~/.feature-factory/verify (set up by scripts/verify-env.sh setup web).
+// Playwright itself lives in ~/.spec2pr/verify (set up by scripts/verify-env.sh setup web).
 //
 // Quick look (no script needed):
 //   node pw.mjs look <url> <evidenceDir> <name> [--extension <dir>] [--mobile]
@@ -16,7 +16,7 @@ import { mkdirSync, writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join, resolve } from "node:path";
 
-const VDIR = process.env.FF_VERIFY_DIR || join(homedir(), ".feature-factory", "verify");
+const VDIR = process.env.FF_VERIFY_DIR || join(homedir(), ".spec2pr", "verify");
 let playwright;
 try {
   playwright = createRequire(join(VDIR, "package.json"))("playwright");

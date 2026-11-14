@@ -3,7 +3,7 @@ description: Run the Elephant–Goldfish pipeline for a feature (Jira ticket, Gi
 argument-hint: <JIRA-KEY | #issue | feature-name> ["description" | --doc <file>] [--spec <dir>] [--adopt] [--from <phase>] [--fast] [--base <branch>] [--here] [--no-dashboard]
 model: opus
 ---
-# feature-factory orchestrator
+# spec2pr orchestrator
 
 Arguments: $ARGUMENTS
 

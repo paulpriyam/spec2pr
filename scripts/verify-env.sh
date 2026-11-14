@@ -5,18 +5,20 @@
 #   verify-env.sh setup web|extension|android|ios
 #
 # Everything is free and local:
-#   web, extension -> Playwright (+ its Chromium) in ~/.feature-factory/verify (shared by all repos)
+#   web, extension -> Playwright (+ its Chromium) in ~/.spec2pr/verify (shared by all repos)
 #   android        -> Android SDK (adb, emulator, an AVD) + Maestro (needs Java 17+)
 #   ios            -> Xcode simulator (xcrun simctl) + Maestro (needs Java 17+)
-# Java is found in: $JAVA_HOME, ~/.feature-factory/jdk, Android Studio's bundled runtime, Homebrew,
-# /usr/libexec/java_home. If none is 17+, setup downloads Eclipse Temurin 17 into ~/.feature-factory/jdk
+# Java is found in: $JAVA_HOME, ~/.spec2pr/jdk, Android Studio's bundled runtime, Homebrew,
+# /usr/libexec/java_home. If none is 17+, setup downloads Eclipse Temurin 17 into ~/.spec2pr/jdk
 # (no Homebrew or admin rights needed).
 set -uo pipefail
-VDIR="$HOME/.feature-factory/verify"
+# One-time move from the plugin's old name (feature-factory) to ~/.spec2pr.
+[ -d "$HOME/.feature-factory" ] && [ ! -e "$HOME/.spec2pr" ] && mv "$HOME/.feature-factory" "$HOME/.spec2pr"
+VDIR="$HOME/.spec2pr/verify"
 PW_VERSION="1.56.1"
 sdk="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Library/Android/sdk}}"
 export PATH="$PATH:$sdk/platform-tools:$sdk/emulator:$HOME/.maestro/bin"
-JDK_DIR="$HOME/.feature-factory/jdk"
+JDK_DIR="$HOME/.spec2pr/jdk"
 java_major() { "$1/bin/java" -version 2>&1 | sed -nE '1s/.*version "([0-9]+).*/\1/p'; }
 find_java() {
   local h cands=("${JAVA_HOME:-}" "$JDK_DIR/Contents/Home" "$JDK_DIR"

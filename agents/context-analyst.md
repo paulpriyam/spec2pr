@@ -1,6 +1,6 @@
 ---
 name: context-analyst
-description: Gathers requirements for a feature from a Jira ticket, a GitHub issue, or a plain description/local doc, plus linked PRD/Confluence pages, Figma designs and repo docs, and writes context.md. First step of the feature-factory pipeline. Never writes code.
+description: Gathers requirements for a feature from a Jira ticket, a GitHub issue, or a plain description/local doc, plus linked PRD/Confluence pages, Figma designs and repo docs, and writes context.md. First step of the spec2pr pipeline. Never writes code.
 model: sonnet
 tools: Read, Grep, Glob, Write, Bash(gh issue view:*), mcp__claude_ai_Atlassian_MCP__getJiraIssue, mcp__claude_ai_Atlassian_MCP__getConfluenceContent, mcp__claude_ai_Atlassian_MCP__searchConfluence, mcp__claude_ai_Atlassian_MCP__search, mcp__atlassian__getJiraIssue, mcp__atlassian__getConfluencePage, mcp__atlassian__searchConfluenceUsingCql, mcp__atlassian__search, mcp__plugin_figma_figma__get_design_context, mcp__plugin_figma_figma__get_screenshot, mcp__plugin_figma_figma__get_metadata
 ---

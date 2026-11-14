@@ -2,15 +2,17 @@
 # Make sure the dashboard server is running, register a repo with it, and open it in the browser
 # on that repo's view (http://127.0.0.1:7788/?repo=<path>).
 # Usage: ensure-dashboard.sh <repo-dir> [--no-open]
-# One server watches every registered repo (~/.feature-factory/repos.txt); the page shows one project at a
+# One server watches every registered repo (~/.spec2pr/repos.txt); the page shows one project at a
 # time with a switcher. Set FF_DASHBOARD=off to disable.
 [ "${FF_DASHBOARD:-on}" = "off" ] && exit 0
+# One-time move from the plugin's old name (feature-factory) to ~/.spec2pr.
+[ -d "$HOME/.feature-factory" ] && [ ! -e "$HOME/.spec2pr" ] && mv "$HOME/.feature-factory" "$HOME/.spec2pr"
 repo="${1:-$PWD}"; open_it=1; [ "$2" = "--no-open" ] && open_it=0
 repo="$(cd "$repo" 2>/dev/null && pwd -P)" || exit 0
 . "$(dirname "$0")/lib.sh"
 repo="$(ff_root "$repo")"   # a feature worktree belongs to its main checkout's view
 port="${FF_DASHBOARD_PORT:-7788}"
-home="$HOME/.feature-factory"; mkdir -p "$home"
+home="$HOME/.spec2pr"; mkdir -p "$home"
 touch "$home/repos.txt"
 grep -qxF "$repo" "$home/repos.txt" || echo "$repo" >> "$home/repos.txt"
 url="http://127.0.0.1:$port"
@@ -44,4 +46,4 @@ fi
 
 page="$url/?repo=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1],safe=""))' "$repo")"
 [ $open_it = 1 ] && command -v open >/dev/null && open "$page" >/dev/null 2>&1
-echo "feature-factory live dashboard: $page (project: $(basename "$repo"))"
+echo "spec2pr live dashboard: $page (project: $(basename "$repo"))"

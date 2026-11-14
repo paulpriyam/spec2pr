@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Feature Factory Monitor</title>
+<title>spec2pr Monitor</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <style>
 /* Layout: project side panel | main (header, needs-you, ticket cards, running/time-per-agent | timeline) */
@@ -180,7 +180,7 @@ header{align-items:center}
 <body>
 <div class="layout">
 <aside>
-  <div class="brand">Feature Factory</div>
+  <div class="brand">spec2pr</div>
   <div class="side-h">Projects</div>
   <nav id="projects" aria-label="Projects"></nav>
   <div class="side-foot live"><span class="dot" id="dot"></span><span id="updated">waiting for server</span></div>
@@ -385,7 +385,7 @@ async function render(data){
   const one = selected !== ALL;
   document.getElementById("repos").textContent = one ? (repos[0] ? label(repos[0], all) : selected.split("/").pop()) : "All projects";
   document.getElementById("path").textContent = one ? selected : "";
-  document.title = one ? `Feature Factory · ${selected.split("/").pop()}` : "Feature Factory Monitor";
+  document.title = one ? `spec2pr · ${selected.split("/").pop()}` : "spec2pr Monitor";
   renderNeeds(repos, all);
   renderOverview(one ? [] : all);
   const tabs = document.getElementById("tabs");
@@ -506,7 +506,7 @@ function setView(v){
 document.getElementById("tabs").addEventListener("click", ev => { const b = ev.target.closest("button[data-view]"); if (b) setView(b.dataset.view); });
 const kind = t => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(t) ? "k-edit" : /^(Read|Grep|Glob|WebFetch|WebSearch)$/.test(t) ? "k-read"
   : t === "Bash" ? "k-run" : /^(Agent|Task)$/.test(t) ? "k-agent" : "k-other";
-const short = a => String(a || "").replace(/^feature-factory:/, "");
+const short = a => String(a || "").replace(/^(spec2pr|spec2pr):/, "");
 function toolList(tools, count, k){
   const more = count > tools.length ? `<div class="more">… ${count - tools.length} earlier tool calls</div>` : "";
   if (!tools.length) return `<div class="more">No tool calls yet</div>`;

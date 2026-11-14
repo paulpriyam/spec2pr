@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""feature-factory dashboard: a tiny local server (stdlib only) that shows pipeline state live.
+"""spec2pr dashboard: a tiny local server (stdlib only) that shows pipeline state live.
 
 Usage:
   python3 server.py [--port 7788] [--repo PATH ...]
 
-Watches <repo>/.agent-state/ for each --repo, plus every repo listed in ~/.feature-factory/repos.txt
+Watches <repo>/.agent-state/ for each --repo, plus every repo listed in ~/.spec2pr/repos.txt
 (registered automatically when /ship-feature runs). Binds to 127.0.0.1 only.
 Endpoints: /  (dashboard page; /?repo=<path> opens it on one project)
            /api/state  (JSON snapshot of every watched repo, polled by the page every 2s)
@@ -94,7 +94,7 @@ def running_agents(events):
     return running, durations
 
 
-REGISTRY = Path.home() / ".feature-factory" / "repos.txt"
+REGISTRY = Path.home() / ".spec2pr" / "repos.txt"
 
 
 def all_repos(fixed):
@@ -403,10 +403,10 @@ def main():
     try:
         server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(repos, args.port))
     except OSError as e:
-        print(f"feature-factory dashboard: port {args.port} is busy ({e}). "
+        print(f"spec2pr dashboard: port {args.port} is busy ({e}). "
               f"Is it already running? Try http://127.0.0.1:{args.port} or pass --port.", file=sys.stderr)
         sys.exit(1)
-    print(f"feature-factory dashboard: http://127.0.0.1:{args.port}  watching: "
+    print(f"spec2pr dashboard: http://127.0.0.1:{args.port}  watching: "
           + (", ".join(str(r) for r in repos) or "(none fixed)") + f" + repos in {REGISTRY}", flush=True)
     try:
         server.serve_forever()

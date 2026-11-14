@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ask the user a question through the feature-factory dashboard (and a desktop notification).
+"""Ask the user a question through the spec2pr dashboard (and a desktop notification).
 
   ask.py post   --title T [--context C] [--choices JSON] [--ticket KEY] [--repo DIR]  -> prints the id
   ask.py wait   ID [--repo DIR]                -> blocks until answered, prints the answer as JSON
@@ -76,13 +76,13 @@ def notify(repo, title):
     name = root_of(repo).name
     try:
         if shutil.which("terminal-notifier"):
-            subprocess.run(["terminal-notifier", "-title", f"Feature Factory · {name}", "-subtitle", "Needs you",
+            subprocess.run(["terminal-notifier", "-title", f"spec2pr · {name}", "-subtitle", "Needs you",
                             "-message", title, "-open", url, "-sound", "default"], timeout=5,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             script = ('on run argv\n display notification (item 1 of argv) with title (item 2 of argv) '
                       'subtitle "Needs you · answer on the dashboard or in the terminal" sound name "Glass"\nend run')
-            subprocess.run(["osascript", "-e", script, title, f"Feature Factory · {name}"], timeout=5,
+            subprocess.run(["osascript", "-e", script, title, f"spec2pr · {name}"], timeout=5,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass

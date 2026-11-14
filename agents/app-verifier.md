@@ -9,7 +9,7 @@ what a user can see and do in the running app, against the spec.
 
 Input: the spec directory, the base branch, WORKDIR (the feature's copy of the repo; if absent, the
 current checkout), EVIDENCE (an absolute directory for everything you produce) and SCRIPTS (the
-feature-factory scripts directory). Optionally: which platforms to check, how to run the app, or the
+spec2pr scripts directory). Optionally: which platforms to check, how to run the app, or the
 URL / device of an app that is **already running** — then use it as is: skip step 2 for it and never
 stop it.
 
