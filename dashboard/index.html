@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feature Factory Monitor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: project side panel | main (header, needs-you, ticket cards, running/time-per-agent | timeline) */
+:root{
+  --bg:#f3f5f8; --panel:#ffffff; --fg:#18202b; --muted:#5d6878; --line:#d5dbe3;
+  --ele:#3d5a80; --gold:#cf5e24; --ok:#23845a; --warn:#b7791f; --bad:#c2410c; --badbg:#fdeee4; --okbg:#e3f3ea; --elebg:#e6edf6;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,sans-serif; --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0f1319; --panel:#171d25; --fg:#e3e8ef; --muted:#97a2b1; --line:#2c3541;
+  --ele:#8fb0d9; --gold:#f2925c; --ok:#5cc394; --warn:#e3b04b; --bad:#f2925c; --badbg:#3a2419; --okbg:#163024; --elebg:#1f2b3b;
+  color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--sans)}
+.layout{display:grid;grid-template-columns:272px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:14px;padding:20px 12px}
+.brand{font:600 16px/1.2 var(--sans);padding:0 8px}
+.side-h{font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 8px}
+#projects{display:flex;flex-direction:column;gap:4px}
+.pj{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:4px;padding:10px;border-radius:8px;cursor:pointer;border:1px solid transparent;min-width:0}
+.pj:hover{background:var(--elebg)}
+.pj:focus-visible{outline:2px solid var(--ele);outline-offset:1px}
+.pj.sel{background:var(--elebg);border-color:var(--ele)}
+.pj-top{display:flex;align-items:center;gap:8px;min-width:0}
+.pj-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.pj-sub{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pj .pill{font-size:9.5px;padding:3px 7px}
+.badge{font:600 11px/1 var(--mono);color:#fff;background:var(--gold);border-radius:999px;padding:3px 7px}
+.pj-all{margin-top:6px;border-top:1px solid var(--line);padding-top:10px}
+.side-foot{margin-top:auto;padding:0 8px}
+.wrap{max-width:1200px;width:100%;margin:0 auto;display:flex;flex-direction:column;gap:20px;padding:24px max(16px,3vw) 48px;min-width:0}
+@media (max-width:800px){
+  .layout{grid-template-columns:1fr}
+  aside{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:14px 16px}
+  #projects{flex-direction:row;overflow-x:auto;padding-bottom:4px}
+  .pj{min-width:200px}
+  .pj-all{margin-top:0;border-top:0;padding-top:10px}
+  .side-foot{display:none}
+}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:12px}
+h1{font:600 20px/1.2 var(--sans);margin:0}
+h1 small{font:400 13px var(--mono);color:var(--muted);margin-left:8px}
+.live{font:12px var(--mono);color:var(--muted);display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.dot.off{background:var(--bad)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;min-width:0}
+.panel h2{font:600 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+.ticket{display:flex;flex-direction:column;gap:14px}
+.ticket.current{border-color:var(--ele);box-shadow:0 0 0 1px var(--ele)}
+.thead{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.key{font:600 16px var(--mono)}
+.title{color:var(--muted);flex:1;min-width:200px}
+.pill{font:600 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;padding:5px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.pill.run{color:var(--ele);border-color:var(--ele);background:var(--elebg)}
+.pill.bad{color:var(--bad);border-color:var(--bad);background:var(--badbg)}
+.pill.ok{color:var(--ok);border-color:var(--ok);background:var(--okbg)}
+a{color:var(--ele)}
+.stepper{display:grid;grid-template-columns:repeat(11,minmax(66px,1fr));gap:6px;overflow-x:auto;padding-bottom:4px}
+.group{grid-column:span var(--n);font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;padding-bottom:4px;border-bottom:2px solid}
+.g-think{color:var(--ele);border-color:var(--ele)} .g-build{color:var(--gold);border-color:var(--gold)} .g-ship{color:var(--ok);border-color:var(--ok)}
+.step{border:1px solid var(--line);border-radius:8px;padding:8px;font-size:12px;display:flex;flex-direction:column;gap:2px;min-height:58px}
+.step b{font-weight:600}
+.step span{font:11px var(--mono);color:var(--muted)}
+.step.done{border-color:var(--ok);background:var(--okbg)}
+.step.active{border-color:var(--ele);background:var(--elebg);animation:pulse 1.6s ease-in-out infinite}
+.step.retry{border-color:var(--warn)}
+.step.failed{border-color:var(--bad);background:var(--badbg)}
+@keyframes pulse{50%{box-shadow:0 0 0 3px color-mix(in srgb,var(--ele) 30%,transparent)}}
+@media (prefers-reduced-motion:reduce){.step.active{animation:none}}
+.meta{display:flex;flex-wrap:wrap;gap:20px;font-size:13px}
+.meta div{display:flex;flex-direction:column;gap:2px}
+.meta label{font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.loop{font:600 13px var(--mono);font-variant-numeric:tabular-nums}
+.loop.hot{color:var(--warn)} .loop.max{color:var(--bad)}
+.last{font-family:var(--mono);font-size:13px;overflow-wrap:anywhere}
+.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:20px}
+@media (max-width:800px){.row{grid-template-columns:1fr}}
+.col{display:flex;flex-direction:column;gap:20px;min-width:0}
+#running li{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line)}
+ul{list-style:none;margin:0;padding:0}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.empty{color:var(--muted);font-size:13px}
+.bars li{display:grid;grid-template-columns:130px 1fr 56px;gap:10px;align-items:center;padding:4px 0;font-size:13px}
+.bar{height:10px;border-radius:3px;background:var(--gold);opacity:.85;min-width:2px}
+.timeline{max-height:520px;overflow-y:auto}
+.timeline li{display:grid;grid-template-columns:70px 44px 1fr auto;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px;align-items:baseline}
+.ev-start{color:var(--ele)} .ev-stop{color:var(--ok)}
+.tk{color:var(--muted);font-family:var(--mono);font-size:12px}
+.others summary{cursor:pointer;color:var(--muted);font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.others[open] summary{margin-bottom:12px}
+.err{color:var(--bad);font-family:var(--mono);font-size:13px}
+.path{font:12px var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.pill.need{color:var(--gold);border-color:var(--gold);background:color-mix(in srgb,var(--gold) 14%,transparent)}
+.pill.mute{opacity:.7}
+.activity{font-size:13px;color:var(--fg)}
+.activity::before{content:"Now: ";font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+/* Needs-you cards */
+.ask{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold);display:flex;flex-direction:column;gap:12px}
+.ask-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px}
+.ask-head b{font-size:16px}
+.ctx{margin:0;white-space:pre-wrap;font:12.5px/1.5 var(--mono);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px;max-height:320px;overflow:auto}
+.ctx-wrap summary{cursor:pointer;color:var(--muted);font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px}
+.choices{display:flex;flex-wrap:wrap;gap:8px}
+.choices button,.send{font:600 13px var(--sans);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:2px;max-width:340px}
+.choices button span{font:400 12px var(--sans);color:var(--muted)}
+.choices button.rec{border-color:var(--ok);background:var(--okbg)}
+.choices button:hover:not(:disabled),.send:hover:not(:disabled){border-color:var(--ele)}
+button:disabled{opacity:.5;cursor:default}
+.ask textarea{font:13px var(--sans);color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;width:100%;min-height:44px;resize:vertical}
+.ask .msg{font:12px var(--mono);color:var(--muted)}
+.ask .msg.bad{color:var(--bad)}
+/* Projects overview (All projects) */
+.proj-row{display:grid;grid-template-columns:minmax(120px,1fr) minmax(140px,1.4fr) auto minmax(160px,2fr) 72px;gap:12px;align-items:center;padding:8px 6px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:6px}
+.proj-row:hover{background:var(--elebg)}
+.proj-row:last-child{border-bottom:0}
+@media (max-width:800px){.proj-row{grid-template-columns:1fr auto}.proj-row .hide-sm{display:none}}
+.ev-ask{color:var(--gold)} .ev-answer{color:var(--ok)}
+.timeline li.empty{display:block}
+.wrap > div:empty{display:none}
+#pipeview{display:flex;flex-direction:column;gap:20px}
+/* View tabs */
+header{align-items:center}
+.tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px}
+.tabs button{all:unset;cursor:pointer;font:600 12px var(--sans);padding:6px 14px;border-radius:6px;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--elebg);color:var(--fg)}
+.tabs button:focus-visible{outline:2px solid var(--ele)}
+[hidden]{display:none !important}
+/* Flow view */
+.fpick{display:flex;flex-wrap:wrap;gap:6px}
+.fpick button{all:unset;cursor:pointer;font:600 12px var(--mono);padding:5px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}
+.fpick button[aria-pressed="true"]{border-color:var(--ele);background:var(--elebg);color:var(--fg)}
+.now{display:flex;flex-direction:column;gap:6px;border-color:var(--ele)}
+.now-line{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;font-size:13px}
+.flow-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.fnode{position:relative;display:block;padding:0 0 18px 30px}
+.fnode::before{content:"";position:absolute;left:9px;top:22px;bottom:0;width:2px;background:var(--line)}
+.fnode:last-child::before{display:none}
+.fnode .fdot{position:absolute;left:2px;top:12px;width:16px;height:16px;border-radius:50%;border:2px solid var(--muted);background:var(--bg)}
+.fnode.elephant .fdot{border-color:var(--ele)} .fnode.agents .fdot{border-color:var(--gold)} .fnode.you .fdot{border-color:var(--ok)}
+.fnode.live .fdot{background:var(--ele);animation:pulse 1.6s ease-in-out infinite}
+.fcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.fnode.elephant .fcard{border-left:3px solid var(--ele)}
+.fhead{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline}
+.fhead b{font-size:14px}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.fagent{border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.fagent.running{border-color:var(--ele);border-left-color:var(--ele);background:var(--elebg)}
+.fyou{font-size:13px}
+.tools{list-style:none;margin:0;padding:0;max-height:230px;overflow-y:auto;border-top:1px solid var(--line)}
+.tools li{display:grid;grid-template-columns:58px 74px minmax(0,1fr) auto;gap:8px;align-items:baseline;padding:3px 0;font-size:12px;border-bottom:1px dashed var(--line)}
+.tools li:last-child{border-bottom:0}
+.tools .tt{font:11px var(--mono);color:var(--muted)}
+.tools .tn{font:600 11px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tools .ts{font:12px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}
+.tools .td{font:11px var(--mono);color:var(--muted)}
+.tools li.running{background:var(--elebg)} .tools li.running .td{color:var(--ele)}
+.tools li.fail .tn,.tools li.fail .td{color:var(--bad)}
+.k-edit{color:var(--gold)} .k-read{color:var(--ele)} .k-run{color:var(--fg)} .k-agent{color:var(--ok)} .k-other{color:var(--muted)}
+.more{font:11px var(--mono);color:var(--muted)}
+.fgrid.one{grid-template-columns:1fr}
+.fgrid:not(.one) .tools li{grid-template-columns:62px minmax(0,1fr) auto}
+.fgrid:not(.one) .tools .tt{display:none}
+.step b{overflow-wrap:anywhere}
+.verify summary{cursor:pointer;font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.verify[open] summary{margin-bottom:10px}
+.vlist li{padding:8px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.vlist li:last-child{border-bottom:0}
+.vhead{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;font-size:13px}
+.thumbs{display:flex;gap:8px;overflow-x:auto}
+.thumbs img{height:140px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside>
+  <div class="brand">Feature Factory</div>
+  <div class="side-h">Projects</div>
+  <nav id="projects" aria-label="Projects"></nav>
+  <div class="side-foot live"><span class="dot" id="dot"></span><span id="updated">waiting for server</span></div>
+</aside>
+<main class="wrap">
+  <header>
+    <h1 id="repos">connecting…</h1>
+    <div class="tabs" role="tablist" aria-label="View" id="tabs" hidden>
+      <button role="tab" data-view="pipeline" aria-selected="true">Pipeline</button>
+      <button role="tab" data-view="flow" aria-selected="false">Live flow</button>
+    </div>
+  </header>
+  <div class="path" id="path"></div>
+  <div id="needs"></div>
+  <div id="overview"></div>
+  <div id="flowview" hidden></div>
+  <div id="pipeview">
+  <div id="tickets"></div>
+  <div class="row">
+    <div class="col">
+      <section class="panel"><h2>Running now</h2><ul class="running" id="running"></ul></section>
+      <section class="panel"><h2>Time per agent · current ticket</h2><ul class="bars" id="bars"></ul></section>
+    </div>
+    <section class="panel"><h2>Timeline · newest first</h2><ul class="timeline" id="timeline" data-k="timeline"></ul></section>
+  </div>
+  </div>
+</main>
+</div>
+<script>
+const STEPS = [
+  ["context","Context","context-analyst"],["spec","Spec","speckit"],["goldfish","Goldfish test","zero-context"],["approval","Approval","you"],
+  ["implement","Implement","implementer ×N"],["guardian","Spec check","spec-guardian"],["tester","Test","tester"],["verify","App check","app-verifier"],["reviewer","Review","pr-reviewer"],
+  ["pr","Open PR","pr-shepherd"],["in-review","In review","comments"]
+];
+const VERDICT_FOR = {goldfish:"goldfish",guardian:"guardian",tester:"tester",verify:"verifier",reviewer:"reviewer"};
+const LIMITS = {spec:3,build:3,review:2};
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmtDur = s => s == null ? "–" : s < 60 ? `${Math.round(s)}s` : s < 3600 ? `${Math.floor(s/60)}m ${String(Math.round(s%60)).padStart(2,"0")}s` : `${Math.floor(s/3600)}h ${Math.floor(s%3600/60)}m`;
+const fmtTime = t => { const d = new Date(t); return isNaN(d) ? "" : d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}); };
+
+function stepState(t, i){
+  const phase = t.phase || "context";
+  if (phase === "done") return "done";
+  const at = phase === "blocked" ? (t.blocked_at || "") : phase;
+  const idx = STEPS.findIndex(s => s[0] === at);
+  if (idx < 0) return "";
+  if (i < idx) return "done";
+  if (i > idx) return "";
+  if (phase === "blocked") return "failed";
+  const v = (t.verdicts || {})[VERDICT_FOR[STEPS[i][0]]];
+  return v === "FAIL" ? "active retry" : "active";
+}
+const ago = t => { const s = (Date.now() - new Date(t)) / 1000; return isNaN(s) ? "" : s < 60 ? "just now" : s < 3600 ? `${Math.floor(s/60)}m ago` : s < 86400 ? `${Math.floor(s/3600)}h ago` : `${Math.floor(s/86400)}d ago`; };
+// Status at a glance, worked out from the pipeline state (nothing extra to keep in sync).
+function statusOf(t, r){
+  const p = t.phase || "context";
+  if (p === "done") return ["Done", "ok"];
+  if (!isActive(t, r)) return ["Inactive", "mute"];
+  if ((r.questions || []).some(q => !q.ticket || q.ticket === t.ticket) || p === "approval") return ["Needs you", "need"];
+  if (p === "blocked") return [`Blocked at ${t.blocked_at || "?"}`, "bad"];
+  if (p === "in-review") return ["PR in review", "ok"];
+  return ["Working", "run"];
+}
+function statusPill(t, r){ const [label, cls] = statusOf(t, r); return `<span class="pill ${cls}">${esc(label)}</span>`; }
+function activityOf(t){
+  const a = t.attempts || {}, n = k => Math.min((a[k] || 0) + 1, LIMITS[k]);
+  return ({
+    context: "Gathering requirements",
+    spec: "Writing the spec and task list",
+    goldfish: `Goldfish test of the spec, round ${n("spec")}/3`,
+    approval: "Waiting for your go on the spec",
+    implement: "Building the tasks",
+    guardian: `Checking the code against the spec (build loop ${n("build")}/3)`,
+    tester: `Testing the acceptance criteria (build loop ${n("build")}/3)`,
+    verify: `Checking it in the running app (build loop ${n("build")}/3)`,
+    reviewer: `Reviewing the change (review loop ${n("review")}/2)`,
+    pr: "Opening the pull request",
+    "in-review": "PR open, waiting for review",
+    done: "Shipped",
+    blocked: `Stopped at ${t.blocked_at || "?"}: ${t.last || "see last result"}`,
+  })[t.phase || "context"] || t.phase;
+}
+function loop(name, n){
+  const max = LIMITS[name]; n = n || 0;
+  const cls = n >= max ? "max" : n >= max - 1 && n > 0 ? "hot" : "";
+  return `<div><label>${name} loops</label><span class="loop ${cls}">${n}/${max}</span></div>`;
+}
+function verdicts(v){
+  v = v || {};
+  return ["goldfish","guardian","tester","verifier","reviewer"].filter(k => k !== "verifier" || k in v).map(k => {
+    const x = v[k]; const cls = x === "PASS" ? "ok" : x === "FAIL" ? "bad" : x === "SKIP" || x === "NEEDS_SETUP" ? "mute" : "";
+    return `<span class="pill ${cls}">${k === "verifier" ? "app check" : k} ${esc(x || "–")}</span>`;
+  }).join(" ");
+}
+function ticketCard(t, isCurrent, repoName, r){
+  const a = t.attempts || {};
+  const steps = STEPS.map((s, i) => `<div class="step ${stepState(t, i)}"><b>${s[1]}</b><span>${s[2]}</span></div>`).join("");
+  return `<section class="panel ticket ${isCurrent ? "current" : ""}">
+    <div class="thead"><span class="key">${esc(t.ticket)}</span><span class="title">${esc(t.title || "")}</span>
+      ${statusPill(t, r)}<span class="tk">${esc(repoName)}</span></div>
+    ${isCurrent ? `<div class="activity">${esc(activityOf(t))}</div>` : ""}
+    <div class="stepper" data-k="stepper-${esc(r.path)}-${esc(t.ticket)}">
+      <div class="group g-think" style="--n:4">Think · elephant</div><div class="group g-build" style="--n:5">Build · goldfish</div><div class="group g-ship" style="--n:2">Ship</div>
+      ${steps}
+    </div>
+    <div class="meta">
+      ${loop("spec", a.spec)}${loop("build", a.build)}${loop("review", a.review)}
+      <div><label>verdicts</label><div style="display:flex;flex-wrap:wrap;gap:6px">${verdicts(t.verdicts)}</div></div>
+      <div style="flex:1;min-width:200px"><label>last result</label><span class="last">${esc(t.last || "–")}</span></div>
+      ${t.pr ? `<div><label>pull request</label><a href="${esc(t.pr)}" target="_blank" rel="noopener">${esc(t.pr.replace(/^https?:\/\/github\.com\//, ""))}</a></div>` : ""}
+      ${t.spec_dir ? `<div><label>spec</label><span class="mono">${esc(t.spec_dir)}</span></div>` : ""}
+      ${t.branch ? `<div><label>branch</label><span class="mono">${esc(t.branch)}</span></div>` : ""}
+      ${t.worktree ? `<div><label>working copy</label><span class="mono" title="${esc(t.worktree)}">${esc(t.worktree.split("/").slice(-2).join("/"))}${t._worktree_exists ? "" : " (removed)"}</span></div>` : (isCurrent ? `<div><label>working copy</label><span class="mono">main checkout</span></div>` : "")}
+    </div>
+    ${t._verify ? verifyPanel(t, r) : ""}
+  </section>`;
+}
+// App check: result per AC with screenshot thumbnails (served from <repo>/.agent-state/<KEY>-verify/).
+function verifyPanel(t, r){
+  const v = t._verify, url = f => `/api/evidence?repo=${encodeURIComponent(r.path)}&key=${encodeURIComponent(t.ticket)}&file=${encodeURIComponent(f)}`;
+  const pill = x => `<span class="pill ${x === "PASS" ? "ok" : x === "FAIL" ? "bad" : "mute"}">${esc(x || "?")}</span>`;
+  const rows = Object.entries(v.per_ac || {}).map(([ac, x]) => {
+    const ev = (x.evidence || []);
+    const thumbs = ev.filter(f => /\.(png|jpe?g|webp|gif)$/i.test(f)).map(f => `<a href="${url(f)}" target="_blank" rel="noopener"><img src="${url(f)}" alt="${esc(ac)} evidence ${esc(f)}" loading="lazy"></a>`).join("");
+    const files = ev.filter(f => !/\.(png|jpe?g|webp|gif)$/i.test(f)).map(f => `<a class="mono" href="${url(f)}" target="_blank" rel="noopener">${esc(f)}</a>`).join(" ");
+    return `<li><div class="vhead" data-ac="${esc(ac)}"><b class="mono">${esc(ac)}</b>${pill(x.result)}<span>${esc(x.note || "")}</span>${files}</div>${thumbs ? `<div class="thumbs" data-k="thumbs-${esc(r.path)}-${esc(t.ticket)}-${esc(ac)}">${thumbs}</div>` : ""}</li>`;
+  }).join("");
+  const issues = (v.issues || []).map(i => `<li><span class="pill ${i.severity === "high" ? "bad" : "mute"}">${esc(i.severity || "issue")}</span> ${esc(i.what || "")}</li>`).join("");
+  return `<details class="verify" data-k="verify-${esc(r.path)}-${esc(t.ticket)}" ${v.verdict === "FAIL" ? "open" : ""}><summary>App check ${pill(v.verdict)} <span class="tk">${esc((v.platforms || []).join(", "))}${v.how_run ? " · " + esc(v.how_run) : ""}${v.skip_reason ? " · " + esc(v.skip_reason) : ""}</span></summary>
+    ${rows ? `<ul class="vlist">${rows}</ul>` : ""}${issues ? `<h2 style="margin-top:12px">Other issues</h2><ul class="vlist">${issues}</ul>` : ""}
+    ${(v.setup_needed || []).length ? `<div class="tk">Needs setup: ${esc(v.setup_needed.map(x => x.platform + " (" + (x.missing || "") + ")").join(", "))}</div>` : ""}</details>`;
+}
+
+// Which project to show: ?repo=<absolute path> (set by ensure-dashboard.sh), "all", or by default
+// the project you launched the dashboard for / the most recently active one. That project stays on top.
+const ALL = "__all__";
+let selected = new URLSearchParams(location.search).get("repo") || null;
+let topRepo = selected && selected !== ALL ? selected : null;
+function select(path){
+  selected = path;
+  const u = new URL(location.href);
+  if (selected === ALL) u.searchParams.set("repo", "all"); else u.searchParams.set("repo", selected);
+  history.replaceState(null, "", u);
+  window.scrollTo(0, 0);
+  tick();
+}
+if (selected === "all") selected = ALL;
+// Two projects can share a folder name (e.g. a repo and its worktree): label them with the parent dir too.
+function label(r, all){
+  const dup = all.filter(x => x.name === r.name).length > 1;
+  return dup ? r.path.split("/").slice(-2).join("/") : r.name;
+}
+function renderSidebar(all){
+  if (!topRepo && all.length) topRepo = all[0].path;            // most recently active
+  if (!selected) selected = topRepo || ALL;
+  const ordered = [...all].sort((a, b) => (b.path === topRepo) - (a.path === topRepo));
+  const items = ordered.map(r => {
+    const act = r.tickets.filter(t => isActive(t, r));
+    const t = act[0] || r.tickets[0];
+    const q = (r.questions || []).length;
+    const sub = act.length > 1 ? `${act.length} active features` : t ? (t.title || t.ticket) : "No pipeline yet";
+    return `<button class="pj ${r.path === selected ? "sel" : ""}" data-path="${esc(r.path)}" title="${esc(r.path)}" ${r.path === selected ? 'aria-current="page"' : ""}>
+      <span class="pj-top"><span class="pj-name">${esc(label(r, all))}</span>${q ? `<span class="badge" title="Needs you">${q}</span>` : ""}${t ? statusPill(t, r) : ""}</span>
+      <span class="pj-sub">${esc(sub)}</span></button>`;
+  });
+  if (selected !== ALL && !all.some(r => r.path === selected)) {
+    items.unshift(`<button class="pj sel" data-path="${esc(selected)}" aria-current="page"><span class="pj-top"><span class="pj-name">${esc(selected.split("/").pop())}</span></span><span class="pj-sub">No pipeline yet</span></button>`);
+  }
+  items.push(`<button class="pj pj-all ${selected === ALL ? "sel" : ""}" data-path="${ALL}"><span class="pj-top"><span class="pj-name">All projects</span></span><span class="pj-sub">Overview of ${all.length} project${all.length === 1 ? "" : "s"}</span></button>`);
+  patch(document.getElementById("projects"), items.join(""));
+}
+document.getElementById("projects").addEventListener("click", ev => {
+  const b = ev.target.closest(".pj"); if (b && b.dataset.path !== selected) select(b.dataset.path);
+});
+
+// Redraw a region only when its content changed, keeping open <details> and scroll positions
+// (elements marked data-k), so the 2-second refresh never jumps or collapses what you are looking at.
+function patch(el, html){
+  if (el._html === html) return;
+  const open = new Set([...el.querySelectorAll("details[data-k]")].filter(d => d.open).map(d => d.dataset.k));
+  const closed = new Set([...el.querySelectorAll("details[data-k]")].filter(d => !d.open).map(d => d.dataset.k));
+  const scroll = new Map([...el.querySelectorAll("[data-k]")].map(x => [x.dataset.k, [x.scrollTop, x.scrollLeft, x.scrollTop + x.clientHeight >= x.scrollHeight - 4]]));
+  if (el.dataset.k) scroll.set(el.dataset.k, [el.scrollTop, el.scrollLeft]);
+  el.innerHTML = html;
+  el._html = html;
+  el.querySelectorAll("details[data-k]").forEach(d => { if (open.has(d.dataset.k)) d.open = true; else if (closed.has(d.dataset.k)) d.open = false; });
+  const restore = x => {
+    const v = scroll.get(x.dataset.k);
+    if (x.hasAttribute("data-stick") && (!v || v[2])) { x.scrollTop = x.scrollHeight; return; }
+    if (v) { x.scrollTop = v[0]; x.scrollLeft = v[1]; }
+  };
+  el.querySelectorAll("[data-k]").forEach(restore);
+  if (el.dataset.k) restore(el);
+}
+// A ticket is active only while it is the repo's current ticket and not finished.
+const isActive = (t, r) => (r.active || []).includes(t.ticket);
+
+async function render(data){
+  const all = data.repos || [];
+  renderSidebar(all);
+  const repos = selected === ALL ? all : all.filter(r => r.path === selected);
+  const one = selected !== ALL;
+  document.getElementById("repos").textContent = one ? (repos[0] ? label(repos[0], all) : selected.split("/").pop()) : "All projects";
+  document.getElementById("path").textContent = one ? selected : "";
+  document.title = one ? `Feature Factory · ${selected.split("/").pop()}` : "Feature Factory Monitor";
+  renderNeeds(repos, all);
+  renderOverview(one ? [] : all);
+  const tabs = document.getElementById("tabs");
+  tabs.hidden = !one;
+  const showFlow = one && view === "flow";
+  tabs.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === (showFlow ? "flow" : "pipeline"))));
+  document.getElementById("flowview").hidden = !showFlow;
+  document.getElementById("pipeview").hidden = showFlow;
+  if (showFlow) {
+    const r = repos[0];
+    if (r) {
+      const act = r.tickets.filter(t => isActive(t, r));
+      if (!flowKey || !r.tickets.some(t => t.ticket === flowKey)) flowKey = (act[0] || r.tickets[0] || {}).ticket || null;
+      const fr = flowKey ? await fetch(`/api/flow?repo=${encodeURIComponent(r.path)}&key=${encodeURIComponent(flowKey)}`, {cache: "no-store"}).then(x => x.ok ? x.json() : null).catch(() => null) : null;
+      renderFlow(r, fr);
+    }
+    return;
+  }
+  const actives = [], others = [];
+  repos.forEach(r => r.tickets.forEach(t => (isActive(t, r) ? actives : others).push([t, r])));
+  let html = actives.map(([t, r]) => ticketCard(t, true, label(r, all), r)).join("");
+  if (!actives.length) html += `<section class="panel empty">No pipeline running${one ? " in this project" : ""}. Start one with <span class="mono">/ship-feature PROJ-123</span>.</section>`;
+  if (others.length) html += `<details class="others panel" data-k="others"><summary>Previous tickets (${others.length})</summary><div class="col">${others.map(([t, r]) => ticketCard(t, false, label(r, all), r)).join("")}</div></details>`;
+  patch(document.getElementById("tickets"), `<div class="col">${html}</div>`);
+
+  const running = repos.flatMap(r => r.running.map(x => ({...x, repo: r.name})));
+  patch(document.getElementById("running"), running.length
+    ? running.map(x => `<li><span><b>${esc(x.agent)}</b> <span class="tk">${esc(x.ticket)}</span></span><span class="mono">${fmtDur(x.elapsed)}</span></li>`).join("")
+    : `<li class="empty">No subagents running.</li>`);
+
+  const totals = {};
+  repos.forEach(r => r.durations.filter(d => (r.active || []).includes(d.ticket)).forEach(d => totals[d.agent] = (totals[d.agent] || 0) + d.seconds));
+  const rows = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  const max = rows.length ? rows[0][1] : 1;
+  patch(document.getElementById("bars"), rows.length
+    ? rows.map(([a, s]) => `<li><span>${esc(a)}</span><div class="bar" style="width:${(s / max * 100).toFixed(1)}%"></div><span class="mono">${fmtDur(s)}</span></li>`).join("")
+    : `<li class="empty">No finished subagent runs yet.</li>`);
+
+  const events = repos.flatMap(r => r.events).sort((a, b) => (b.t || "").localeCompare(a.t || "")).slice(0, 150);
+  patch(document.getElementById("timeline"), events.length
+    ? events.map(e => `<li><span class="mono">${fmtTime(e.t)}</span><span class="mono ev-${esc(e.ev)}">${esc(e.ev)}</span><b>${esc(e.agent)}</b><span class="tk">${esc(e.ticket)}</span></li>`).join("")
+    : `<li class="empty">Events appear here as subagents start and stop.</li>`);
+}
+
+// "Needs you": questions posted by scripts/ask.py. Rebuilt only when the set of questions changes,
+// so a note you are typing is not wiped by the 2-second refresh.
+function renderNeeds(repos, all){
+  const qs = repos.flatMap(r => (r.questions || []).map(q => ({...q, repo: r.path, repoLabel: label(r, all)})));
+  const el = document.getElementById("needs");
+  const sig = qs.map(q => q.id).join(",");
+  const base = document.title.replace(/^\(\d+\) /, "");
+  document.title = qs.length ? `(${qs.length}) ${base}` : base;
+  if (el.dataset.sig === sig) return;
+  el.dataset.sig = sig;
+  el.innerHTML = qs.length ? `<div class="col">${qs.map(askCard).join("")}</div>` : "";
+}
+function askCard(q){
+  const ctx = q.context ? `<details class="ctx-wrap" ${q.context.length < 900 ? "open" : ""}><summary>Details</summary><pre class="ctx">${esc(q.context)}</pre></details>` : "";
+  const choices = (q.choices || []).length
+    ? `<div class="choices">${q.choices.map(c => `<button class="${c.recommended ? "rec" : ""}" data-answer="${esc(c.label)}">${esc(c.label)}${c.recommended ? " ✓" : ""}${c.detail ? `<span>${esc(c.detail)}</span>` : ""}</button>`).join("")}</div>
+       <textarea placeholder="Add a note for Claude (optional)"></textarea>`
+    : `<textarea placeholder="Type your answer" class="free"></textarea><div><button class="send">Send answer</button></div>`;
+  return `<section class="panel ask" data-id="${esc(q.id)}" data-repo="${esc(q.repo)}">
+    <div class="ask-head"><span class="pill need">Needs you</span><b>${esc(q.title)}</b>
+      <span class="tk">${esc(q.repoLabel)}${q.ticket ? " · " + esc(q.ticket) : ""} · asked ${esc(ago(q.asked))}</span></div>
+    ${ctx}${choices}<div class="msg">You can also answer in the Claude terminal.</div></section>`;
+}
+document.getElementById("needs").addEventListener("click", async ev => {
+  const btn = ev.target.closest("button"); if (!btn) return;
+  const card = btn.closest(".ask"), msg = card.querySelector(".msg"), ta = card.querySelector("textarea");
+  const free = btn.classList.contains("send");
+  const answer = free ? ta.value.trim() : btn.dataset.answer;
+  if (!answer) { msg.textContent = "Type an answer first."; msg.className = "msg bad"; return; }
+  card.querySelectorAll("button,textarea").forEach(x => x.disabled = true);
+  msg.className = "msg"; msg.textContent = "Sending…";
+  try {
+    const r = await fetch("/api/answer", {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({repo: card.dataset.repo, id: card.dataset.id, answer, note: free ? null : ta.value})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.message || r.status);
+    msg.textContent = `Sent: "${answer}". Claude picks it up in a moment.`;
+  } catch (e) {
+    msg.className = "msg bad"; msg.textContent = "Could not send: " + e.message;
+    card.querySelectorAll("button,textarea").forEach(x => x.disabled = false);
+  }
+});
+
+// All projects: one row per project with what it is doing; click to open it.
+function renderOverview(all){
+  const el = document.getElementById("overview");
+  if (!all.length) { patch(el, ""); return; }
+  const rows = all.flatMap(r => {
+    const act = r.tickets.filter(t => isActive(t, r));
+    return (act.length ? act : [r.tickets[0]]).map(t => {
+      const st = t ? statusPill(t, r) : `<span class="pill mute">No pipeline</span>`;
+      return `<div class="proj-row" data-path="${esc(r.path)}" title="${esc(r.path)}"><b>${esc(label(r, all))}</b>
+        <span class="hide-sm">${esc(t ? (t.title || t.ticket) : "")}</span>${st}
+        <span class="hide-sm tk">${esc(t && isActive(t, r) ? activityOf(t) : "")}</span>
+        <span class="hide-sm tk">${esc(r.last_activity ? ago(r.last_activity) : "")}</span></div>`;
+    });
+  }).join("");
+  patch(el, `<section class="panel"><h2>Projects</h2>${rows}</section>`);
+}
+document.getElementById("overview").addEventListener("click", ev => {
+  const row = ev.target.closest(".proj-row"); if (!row) return;
+  select(row.dataset.path);
+});
+
+// ---- Live flow view: elephant, subagents (side by side when parallel), their tool calls, your answers.
+let view = new URLSearchParams(location.search).get("view") === "flow" ? "flow" : "pipeline";
+let flowKey = null;
+function setView(v){
+  view = v;
+  const u = new URL(location.href); if (v === "flow") u.searchParams.set("view", "flow"); else u.searchParams.delete("view");
+  history.replaceState(null, "", u);
+  tick();
+}
+document.getElementById("tabs").addEventListener("click", ev => { const b = ev.target.closest("button[data-view]"); if (b) setView(b.dataset.view); });
+const kind = t => /^(Edit|Write|MultiEdit|NotebookEdit)$/.test(t) ? "k-edit" : /^(Read|Grep|Glob|WebFetch|WebSearch)$/.test(t) ? "k-read"
+  : t === "Bash" ? "k-run" : /^(Agent|Task)$/.test(t) ? "k-agent" : "k-other";
+const short = a => String(a || "").replace(/^feature-factory:/, "");
+function toolList(tools, count, k){
+  const more = count > tools.length ? `<div class="more">… ${count - tools.length} earlier tool calls</div>` : "";
+  if (!tools.length) return `<div class="more">No tool calls yet</div>`;
+  return `${more}<ul class="tools" data-k="${esc(k)}" data-stick>${tools.map(c => `<li class="${c.status}" title="${esc(fmtTime(c.t) + " · " + c.tool + ": " + (c.summary || ""))}">
+    <span class="tt">${esc(fmtTime(c.t).replace(/\s?[AP]M$/i, ""))}</span><span class="tn ${kind(c.tool)}">${esc(short(c.tool))}</span>
+    <span class="ts" title="${esc(c.summary)}">${esc(c.summary || "")}</span>
+    <span class="td">${c.status === "running" ? "running…" : c.status === "fail" ? "failed" : c.status === "unknown" ? "?" : c.seconds >= 1 ? fmtDur(c.seconds) : ""}</span></li>`).join("")}</ul>`;
+}
+function renderFlow(r, flow){
+  const el = document.getElementById("flowview");
+  const act = r.tickets.filter(t => isActive(t, r));
+  const choices = (act.length ? act : r.tickets).slice(0, 8);
+  const pick = choices.length > 1 ? `<div class="fpick">${choices.map(t => `<button data-key="${esc(t.ticket)}" aria-pressed="${t.ticket === flowKey}">${esc(t.ticket)}</button>`).join("")}</div>` : "";
+  if (!flow) { patch(el, `${pick}<section class="panel empty">No pipeline in this project yet.</section>`); return; }
+  const nodes = flow.nodes || [];
+  const runningAgents = nodes.filter(n => n.kind === "agents").flatMap(n => n.agents).filter(a => a.status === "running");
+  const lastTool = list => [...list].reverse().find(c => c.status === "running") || list[list.length - 1];
+  const nowLines = runningAgents.length ? runningAgents.map(a => { const c = lastTool(a.tools); return `<div class="now-line"><b>${esc(short(a.type))}</b><span class="pill run">running ${fmtDur(a.seconds)}</span>${c ? `<span class="mono">${esc(c.tool)}: ${esc(c.summary)}</span>` : ""}</div>`; })
+    : (() => { const e = [...nodes].reverse().find(n => n.kind === "elephant"); const c = e && lastTool(e.tools);
+        return [`<div class="now-line"><b>Elephant</b>${c ? `<span class="mono">last: ${esc(c.tool)}: ${esc(c.summary)}</span><span class="tk">${esc(ago(c.t))}</span>` : `<span class="tk">idle</span>`}</div>`]; })();
+  const html = nodes.map((n, i) => {
+    const last = i === nodes.length - 1;
+    if (n.kind === "elephant") return `<li class="fnode elephant ${n.running ? "live" : ""}"><span class="fdot"></span><div class="fcard">
+      <div class="fhead"><b>Elephant</b><span class="tk">orchestrator · ${n.count} tool call${n.count === 1 ? "" : "s"} · ${esc(fmtTime(n.t))}</span></div>
+      ${toolList(n.tools, n.count, "fe-" + n.t)}</div></li>`;
+    if (n.kind === "you") return `<li class="fnode you"><span class="fdot"></span><div class="fcard fyou">
+      <div class="fhead"><b>${n.ev === "ask" ? "Asked you" : "You answered"}</b><span class="tk">${esc(fmtTime(n.t))}</span></div>
+      <div>${esc(n.text || (n.ev === "ask" ? "a question" : "—"))}</div></div></li>`;
+    const live = n.agents.some(a => a.status === "running");
+    return `<li class="fnode agents ${live ? "live" : ""}"><span class="fdot"></span><div class="fcard">
+      <div class="fhead"><b>${n.agents.length > 1 ? `${n.agents.length} subagents in parallel` : "Subagent"}</b><span class="tk">${esc(fmtTime(n.t))}</span></div>
+      <div class="fgrid ${n.agents.length === 1 ? "one" : ""}">${n.agents.map(a => `<div class="fagent ${a.status}"><div class="fhead"><b>${esc(short(a.type))}</b>
+        <span class="pill ${a.status === "running" ? "run" : "ok"}">${a.status === "running" ? "running" : "done"} ${fmtDur(a.seconds)}</span>
+        <span class="tk">${a.count} tool call${a.count === 1 ? "" : "s"}</span></div>${toolList(a.tools, a.count, "fa-" + a.id)}</div>`).join("")}</div></div></li>`;
+  }).join("");
+  patch(el, `<div class="col">${pick}
+    <section class="panel now"><h2>Now · ${esc(flow.key)}</h2>${nowLines.join("")}
+      <div class="tk">${flow.totals.agents} subagents · ${flow.totals.tool_calls} tool calls so far</div></section>
+    ${nodes.length ? `<ol class="flow-list">${html}</ol>` : `<section class="panel empty">The flow fills in as the elephant and its subagents work. Tool calls are recorded from plugin version 0.5.0 on.</section>`}</div>`);
+}
+document.getElementById("flowview").addEventListener("click", ev => {
+  const b = ev.target.closest(".fpick button"); if (b) { flowKey = b.dataset.key; tick(); }
+});
+
+async function tick(){
+  const dot = document.getElementById("dot"), upd = document.getElementById("updated");
+  try {
+    const r = await fetch("/api/state", {cache: "no-store"});
+    if (!r.ok) throw new Error(r.status);
+    await render(await r.json());
+    dot.classList.remove("off");
+    upd.textContent = "live · updated " + new Date().toLocaleTimeString();
+  } catch (e) {
+    dot.classList.add("off");
+    upd.textContent = "server not reachable; retrying…";
+  }
+}
+tick(); setInterval(tick, 2000);
+</script>
+</body>
+</html>

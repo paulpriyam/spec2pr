@@ -1,0 +1,16 @@
+{
+  "name": "feature-factory",
+  "owner": {
+    "name": "Priyam Paul"
+  },
+  "plugins": [
+    {
+      "name": "feature-factory",
+      "source": "./",
+      "description": "Ticket, issue or idea to a reviewed, tested PR: an elephant orchestrator plans with spec-kit, a zero-context goldfish tests the spec, fresh-context subagents build, test, check the running app (web, Chrome extension, Android, iOS), review and open the PR. Live local dashboard included."
+    }
+  ],
+  "metadata": {
+    "description": "Elephant–Goldfish feature pipeline for Claude Code: spec, zero-context spec test, build, test, check in the real app, review, PR."
+  }
+}
