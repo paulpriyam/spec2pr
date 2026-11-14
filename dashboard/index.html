@@ -99,6 +99,14 @@ ul{list-style:none;margin:0;padding:0}
 .path{font:12px var(--mono);color:var(--muted);overflow-wrap:anywhere}
 .pill.need{color:var(--gold);border-color:var(--gold);background:color-mix(in srgb,var(--gold) 14%,transparent)}
 .pill.mute{opacity:.7}
+.pill.warn{color:var(--warn);border-color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.loopline{font-size:13px;color:var(--warn);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.loopline b{font-weight:600}
+.loopline code{font:12px var(--mono);overflow-wrap:anywhere}
+.cost{font:600 11px var(--mono);color:var(--muted);border:1px dashed var(--line);border-radius:999px;padding:3px 8px;white-space:nowrap}
+.g-loop{border-color:var(--warn) !important;border-left-color:var(--warn) !important;background:color-mix(in srgb,var(--warn) 12%,var(--panel)) !important}
+.g-loop b::before{content:"⟳ ";color:var(--warn)}
+.fagent.loop{border-color:var(--warn);border-left-color:var(--warn)}
 .activity{font-size:13px;color:var(--fg)}
 .activity::before{content:"Now: ";font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 /* Needs-you cards */
@@ -271,6 +279,7 @@ function statusOf(t, r){
   if (!isActive(t, r)) return ["Inactive", "mute"];
   if ((r.questions || []).some(q => !q.ticket || q.ticket === t.ticket) || p === "approval") return ["Needs you", "need"];
   if (p === "blocked") return [`Blocked at ${t.blocked_at || "?"}`, "bad"];
+  if ((t._loops || []).length) return ["Looping?", "warn"];
   if (p === "in-review") return ["PR in review", "ok"];
   return ["Working", "run"];
 }
@@ -305,6 +314,8 @@ function verdicts(v){
     return `<span class="pill ${cls}">${k === "verifier" ? "app check" : k} ${esc(x || "–")}</span>`;
   }).join(" ");
 }
+const money = v => v == null ? "" : v < 0.01 ? "<$0.01" : "$" + (v < 10 ? v.toFixed(2) : v.toFixed(1));
+const loopLine = l => `<div class="loopline">⟳ <b>Possible loop:</b> ${esc(l.agent)} · <code>${esc(l.text)}</code></div>`;
 function ticketCard(t, isCurrent, repoName, r){
   const a = t.attempts || {};
   const steps = STEPS.map((s, i) => `<div class="step ${stepState(t, i)}"><b>${s[1]}</b><span>${s[2]}</span></div>`).join("");
@@ -312,6 +323,7 @@ function ticketCard(t, isCurrent, repoName, r){
     <div class="thead"><span class="key">${esc(t.ticket)}</span><span class="title">${esc(t.title || "")}</span>
       ${statusPill(t, r)}<span class="tk">${esc(repoName)}</span></div>
     ${isCurrent ? `<div class="activity">${esc(activityOf(t))}</div>` : ""}
+    ${(t._loops || []).map(loopLine).join("")}
     <div class="stepper" data-k="stepper-${esc(r.path)}-${esc(t.ticket)}">
       <div class="group g-think" style="--n:4">Think · elephant</div><div class="group g-build" style="--n:5">Build · goldfish</div><div class="group g-ship" style="--n:2">Ship</div>
       ${steps}
@@ -322,6 +334,7 @@ function ticketCard(t, isCurrent, repoName, r){
       <div style="flex:1;min-width:200px"><label>last result</label><span class="last">${esc(t.last || "–")}</span></div>
       ${t.pr ? `<div><label>pull request</label><a href="${esc(t.pr)}" target="_blank" rel="noopener">${esc(t.pr.replace(/^https?:\/\/github\.com\//, ""))}</a></div>` : ""}
       ${t.spec_dir ? `<div><label>spec</label><span class="mono">${esc(t.spec_dir)}</span></div>` : ""}
+      ${t._cost != null ? `<div><label>cost (est.)</label><span class="mono" title="Estimated at Claude API list prices from the session transcripts">${money(t._cost)}</span></div>` : ""}
       ${t.branch ? `<div><label>branch</label><span class="mono">${esc(t.branch)}</span></div>` : ""}
       ${t.worktree ? `<div><label>working copy</label><span class="mono" title="${esc(t.worktree)}">${esc(t.worktree.split("/").slice(-2).join("/"))}${t._worktree_exists ? "" : " (removed)"}</span></div>` : (isCurrent ? `<div><label>working copy</label><span class="mono">main checkout</span></div>` : "")}
     </div>
@@ -444,7 +457,7 @@ async function render(data){
 
   const running = repos.flatMap(r => r.running.map(x => ({...x, repo: r.name})));
   patch(document.getElementById("running"), running.length
-    ? running.map(x => `<li><span><b>${esc(x.agent)}</b> <span class="tk">${esc(x.ticket)}</span></span><span class="mono">${fmtDur(x.elapsed)}</span></li>`).join("")
+    ? running.map(x => `<li><span><b>${esc(short(x.agent))}</b> <span class="tk">${esc(x.ticket)}</span></span><span class="mono">${fmtDur(x.elapsed)}</span></li>`).join("")
     : `<li class="empty">No subagents running.</li>`);
 
   const totals = {};
@@ -452,7 +465,7 @@ async function render(data){
   const rows = Object.entries(totals).sort((a, b) => b[1] - a[1]);
   const max = rows.length ? rows[0][1] : 1;
   patch(document.getElementById("bars"), rows.length
-    ? rows.map(([a, s]) => `<li><span>${esc(a)}</span><div class="bar" style="width:${(s / max * 100).toFixed(1)}%"></div><span class="mono">${fmtDur(s)}</span></li>`).join("")
+    ? rows.map(([a, s]) => `<li><span>${esc(short(a))}</span><div class="bar" style="width:${(s / max * 100).toFixed(1)}%"></div><span class="mono">${fmtDur(s)}</span></li>`).join("")
     : `<li class="empty">No finished subagent runs yet.</li>`);
 
   const events = repos.flatMap(r => r.events).sort((a, b) => (b.t || "").localeCompare(a.t || "")).slice(0, 150);
@@ -552,13 +565,13 @@ const RANK = {"context-analyst": 0, "goldfish-spec-test": 2, "implementer": 4, "
 const seenG = new Set();
 function flowGraph(nodes){
   const GAP = 34, BH = 46, VG = 10, PAD = 14, TOP = 18;
-  const W_OF = {elephant: 92, you: 118, agents: 138};
+  const W_OF = {elephant: 92, you: 118, agents: 158};
   const cols = nodes.map((n, i) => {
     if (n.kind === "elephant") return {i, w: W_OF.elephant, boxes: [{id: "e" + n.t, cls: "g-ele" + (n.running ? " g-run" : ""), title: "Elephant", sub: `${n.count} call${n.count === 1 ? "" : "s"}`}]};
     if (n.kind === "you") return {i, w: W_OF.you, boxes: [{id: "y" + n.ev + n.t, cls: "g-you", title: n.ev === "ask" ? "Asked you" : "You: " + (n.text || "answered"), sub: n.ev === "ask" ? (n.text || "") : fmtTime(n.t)}]};
     return {i, w: W_OF.agents, rank: Math.max(...n.agents.map(a => RANK[short(a.type)] ?? -1)),
-      boxes: n.agents.map(a => ({id: "a" + a.id, cls: "g-agent " + (a.status === "running" ? "g-run" : "g-done"), title: short(a.type),
-        sub: `${a.status === "running" ? "running " : ""}${fmtDur(a.seconds)} · ${a.count} call${a.count === 1 ? "" : "s"}`}))};
+      boxes: n.agents.map(a => ({id: "a" + a.id, cls: "g-agent " + (a.status === "running" ? "g-run" : "g-done") + (a.loop ? " g-loop" : ""), title: short(a.type),
+        sub: `${a.status === "running" ? "running " : ""}${fmtDur(a.seconds)} · ${a.count} call${a.count === 1 ? "" : "s"}${a.cost ? " · " + money(a.cost.usd) : ""}`}))};
   });
   if (!cols.length) return "";
   const maxStack = Math.max(1, ...cols.map(c => c.boxes.length));
@@ -610,13 +623,15 @@ function renderFlow(r, flow){
     const live = n.agents.some(a => a.status === "running");
     return `<li class="fnode agents ${live ? "live" : ""}" id="fn-${i}"><span class="fdot"></span><div class="fcard">
       <div class="fhead"><b>${n.agents.length > 1 ? `${n.agents.length} subagents in parallel` : "Subagent"}</b><span class="tk">${esc(fmtTime(n.t))}</span></div>
-      <div class="fgrid ${n.agents.length === 1 ? "one" : ""}">${n.agents.map(a => `<div class="fagent ${a.status}"><div class="fhead"><b>${esc(short(a.type))}</b>
+      <div class="fgrid ${n.agents.length === 1 ? "one" : ""}">${n.agents.map(a => `<div class="fagent ${a.status}${a.loop ? " loop" : ""}"><div class="fhead"><b>${esc(short(a.type))}</b>
         <span class="pill ${a.status === "running" ? "run" : "ok"}">${a.status === "running" ? "running" : "done"} ${fmtDur(a.seconds)}</span>
-        <span class="tk">${a.count} tool call${a.count === 1 ? "" : "s"}</span></div>${toolList(a.tools, a.count, "fa-" + a.id)}</div>`).join("")}</div></div></li>`;
+        <span class="tk">${a.count} tool call${a.count === 1 ? "" : "s"}</span>${a.cost ? `<span class="cost" title="${a.cost.tokens.output.toLocaleString()} output tokens · estimated at API list prices">est. ${money(a.cost.usd)}</span>` : ""}</div>
+        ${a.loop ? loopLine({agent: short(a.type), text: a.loop.text}) : ""}${toolList(a.tools, a.count, "fa-" + a.id)}</div>`).join("")}</div></div></li>`;
   }).join("");
   patch(el, `<div class="col">${pick}
     <section class="panel now"><h2>Now · ${esc(flow.key)}</h2>${nowLines.join("")}
-      <div class="tk">${flow.totals.agents} subagents · ${flow.totals.tool_calls} tool calls so far</div></section>
+      ${(flow.loops || []).filter(l => l.running).map(loopLine).join("")}
+      <div class="tk">${flow.totals.agents} subagents · ${flow.totals.tool_calls} tool calls so far${flow.totals.cost_usd != null ? ` · <span title="Estimated at Claude API list prices from the session transcripts. On a Claude subscription you are not billed per token.">est. cost ${money(flow.totals.cost_usd)}${flow.totals.cost_partial ? "+" : ""}</span>` : ""}${flow.elephant_cost ? ` (elephant ${money(flow.elephant_cost.usd)})` : ""}</div></section>
     ${nodes.length ? `<section class="panel"><h2>Flow map · click a step to see its tool calls</h2>
       <div class="gwrap" data-k="graph-${esc(flow.key)}" data-stickx>${flowGraph(nodes)}</div>
       <div class="g-legend"><span><i style="border-color:var(--ok)"></i>done</span><span><i style="border-color:var(--ele);border-top-style:dashed"></i>running now</span><span><i style="border-color:var(--bad);border-top-style:dashed"></i>sent back for fixes</span></div></section>` : ""}

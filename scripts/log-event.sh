@@ -10,7 +10,8 @@ root=$(ff_root "$cwd")
 key=$(ff_key "$root" "$cwd" "$sid")
 [ -n "$key" ] || exit 0
 jq -c --arg ev "$ev" --arg key "$key" \
-  '{t:(now|todate), ticket:$key, ev:$ev, agent:(.agent_type // .subagent_type // "unknown"), id:(.agent_id // null)}' \
+  '{t:(now|todate), ticket:$key, ev:$ev, agent:(.agent_type // .subagent_type // "unknown"), id:(.agent_id // null),
+    session:(.session_id // null), transcript:(.transcript_path // null)}' \
   <<<"$input" >> "$root/.agent-state/events.jsonl"
 # Backup for auto-open: if the dashboard isn't running when a subagent starts, start it (no browser tab).
 if [ "$ev" = "start" ] && [ "$(jq -r 'if .dashboard == false then "off" else "on" end' "$root/.agent-state/$key.json" 2>/dev/null)" != "off" ]; then

@@ -151,6 +151,13 @@ may install it. Android needs Android Studio with an emulator, and iOS needs Xco
   updates. With a plain idea, no ticket system is involved. For Jira, Confluence or Figma, connect those
   connectors in Claude Code.
 - **It never merges.** Merging the pull request is always your call.
+- **It warns you about loops.** If an agent runs the same failing command three times, or a builder makes 25
+  tool calls without changing a file, the feature is marked **Looping?** on the dashboard and you get a
+  desktop notification, so you can step in early.
+- **It estimates the cost.** Every feature, and every agent in the live flow, shows an estimated cost worked
+  out from Claude Code's own token counts at Claude API list prices. On a Claude subscription you aren't
+  billed per token, so read it as "what this would cost on the API". Prices can be changed in
+  `~/.spec2pr/prices.json`.
 
 ## Reference
 

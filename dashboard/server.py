@@ -136,6 +136,12 @@ def snapshot(fixed):
                     data["_mtime"] = datetime.fromtimestamp(p.stat().st_mtime, timezone.utc).isoformat()
                     wt = data.get("worktree")
                     data["_worktree_exists"] = bool(wt) and Path(wt).is_dir()
+                    try:
+                        fl = build_flow_for(repo, data["ticket"])
+                        data["_cost"] = fl["totals"]["cost_usd"]
+                        data["_loops"] = [l for l in fl["loops"] if l["running"]]
+                    except Exception:
+                        pass
                     report = read_json(sd / f"{data['ticket']}-verify" / "report.json")
                     if isinstance(report, dict):
                         data["_verify"] = report
@@ -207,17 +213,152 @@ def answer_question(fixed, body):
 
 MAX_TOOLS_PER_NODE = 60
 
+# ---- Cost estimates -------------------------------------------------------------------------------
+# API list prices in USD per million tokens: input, output, cache write (5 min), cache write (1 h),
+# cache read. Override or add models in ~/.spec2pr/prices.json as {"model-id": [in, out, w5m, w1h, read]}.
+# These are estimates of what the run would cost on the Claude API; on a Claude subscription you are
+# not billed per token.
+PRICES = {
+    "claude-fable-5-2": (8, 40, 10, 16, 0.20), "claude-mythos-5-2": (8, 40, 10, 16, 0.20),
+    "claude-fable-5-1": (10, 50, 12.5, 20, 0.25), "claude-mythos-5-1": (10, 50, 12.5, 20, 0.25),
+    "claude-fable-5": (10, 50, 12.5, 20, 1.0), "claude-mythos-5": (10, 50, 12.5, 20, 1.0),
+    "claude-opus-5-5": (4, 20, 5, 8, 0.20),
+    "claude-opus-5": (5, 25, 6.25, 10, 0.50), "claude-opus-4-8": (5, 25, 6.25, 10, 0.50),
+    "claude-opus-4-7": (5, 25, 6.25, 10, 0.50), "claude-opus-4-6": (5, 25, 6.25, 10, 0.50),
+    "claude-sonnet-5-5": (2, 10, 2.5, 4, 0.10), "claude-sonnet-5": (2, 10, 2.5, 4, 0.20),
+    "claude-sonnet-4-6": (3, 15, 3.75, 6, 0.30), "claude-sonnet-4-5": (3, 15, 3.75, 6, 0.30),
+    "claude-haiku-5-5": (0.10, 0.50, 0.125, 0.20, 0.01), "claude-haiku-4-5": (1, 5, 1.25, 2, 0.10),
+}
+
+
+def prices():
+    p = dict(PRICES)
+    extra = read_json(Path.home() / ".spec2pr" / "prices.json")
+    if isinstance(extra, dict):
+        p.update({k: tuple(v) for k, v in extra.items() if isinstance(v, list) and len(v) == 5})
+    return p
+
+
+def price_for(model, table):
+    m = (model or "").split("[")[0]
+    best = max((k for k in table if m.startswith(k)), key=len, default=None)
+    return table.get(best) if best else None
+
+
+_tx_cache = {}
+
+
+def transcript_entries(path):
+    """Assistant messages of a Claude Code transcript: [(timestamp, model, usage, sidechain)], one per message id."""
+    try:
+        st = path.stat()
+    except OSError:
+        return []
+    hit = _tx_cache.get(str(path))
+    if hit and hit[0] == (st.st_mtime, st.st_size):
+        return hit[1]
+    by_id = {}
+    try:
+        with open(path) as f:
+            for line in f:
+                if '"usage"' not in line:
+                    continue
+                try:
+                    e = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                m = e.get("message") or {}
+                if e.get("type") != "assistant" or not isinstance(m.get("usage"), dict):
+                    continue
+                by_id[m.get("id") or e.get("uuid")] = (e.get("timestamp") or "", m.get("model"), m["usage"], bool(e.get("isSidechain")))
+    except OSError:
+        return []
+    entries = sorted(by_id.values(), key=lambda x: x[0])
+    _tx_cache[str(path)] = ((st.st_mtime, st.st_size), entries)
+    return entries
+
+
+def cost_of(entries, table):
+    usd, unpriced = 0.0, False
+    tok = {"input": 0, "output": 0, "cache_write": 0, "cache_read": 0}
+    for _, model, u, _ in entries:
+        cw = u.get("cache_creation") or {}
+        w5 = cw.get("ephemeral_5m_input_tokens")
+        w1 = cw.get("ephemeral_1h_input_tokens") or 0
+        if w5 is None:
+            w5 = (u.get("cache_creation_input_tokens") or 0) - w1
+        inp, out, rd = u.get("input_tokens") or 0, u.get("output_tokens") or 0, u.get("cache_read_input_tokens") or 0
+        tok["input"] += inp; tok["output"] += out; tok["cache_write"] += w5 + w1; tok["cache_read"] += rd
+        pr = price_for(model, table)
+        if not pr:
+            unpriced = unpriced or bool(inp or out)
+            continue
+        mult = 2.0 if u.get("speed") == "fast" else 1.0
+        if (model or "").startswith("claude-haiku-5-5") and inp + rd + w5 + w1 > 100_000:
+            mult *= 5.0  # long prompts are billed at the higher tier
+        usd += mult * (inp * pr[0] + out * pr[1] + w5 * pr[2] + w1 * pr[3] + rd * pr[4]) / 1e6
+    return {"usd": round(usd, 4), "tokens": tok, "unpriced": unpriced}
+
+
+# ---- Loop detection ---------------------------------------------------------------------------------
+EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
+EDITING_AGENTS = {"implementer", "tester"}
+REPEAT_FAILS, STALL_CALLS = 3, 25
+
+
+def detect_loop(calls, agent_type):
+    """Flag an agent that keeps hitting the same failure, or a builder busy without changing any file."""
+    fails = {}
+    for c in calls:
+        if c["status"] == "fail":
+            k = (c["tool"], c["summary"])
+            fails[k] = fails.get(k, 0) + 1
+    if fails:
+        (tool, summ), n = max(fails.items(), key=lambda kv: kv[1])
+        if n >= REPEAT_FAILS:
+            return {"kind": "repeat", "count": n, "text": f"{tool} `{summ[:70]}` failed {n} times"}
+    short = (agent_type or "").split(":")[-1]
+    if short in EDITING_AGENTS:
+        since = 0
+        for c in reversed(calls):
+            if c["tool"] in EDIT_TOOLS:
+                break
+            since += 1
+        if since >= STALL_CALLS:
+            return {"kind": "stall", "count": since, "text": f"{since} tool calls without changing a file"}
+    return None
+
 
 def build_flow(fixed, query):
-    """Chronological flow for one feature: elephant segments, (parallel) subagents with their tool
-    calls, and the user's questions/answers. Built from events.jsonl + tools.jsonl."""
     from urllib.parse import parse_qs
     q = {k: v[0] for k, v in parse_qs(query).items()}
     match = [r for r in all_repos(fixed) if str(r) == q.get("repo")]
-    key = q.get("key")
-    if not match or not key:
+    if not match or not q.get("key"):
         return None
-    sd = match[0] / ".agent-state"
+    return build_flow_for(match[0], q["key"])
+
+
+_flow_cache = {}
+
+
+def build_flow_for(repo, key):
+    """Memoized on the state files; transcripts have their own cache."""
+    sd = repo / ".agent-state"
+    sig = tuple((p.stat().st_mtime, p.stat().st_size) if p.exists() else None
+                for p in (sd / "events.jsonl", sd / "tools.jsonl", sd / "questions"))
+    hit = _flow_cache.get((str(repo), key))
+    if hit and hit[0] == sig and (datetime.now(timezone.utc) - hit[2]).total_seconds() < 2:
+        return hit[1]
+    flow = _build_flow(repo, key)
+    _flow_cache[(str(repo), key)] = (sig, flow, datetime.now(timezone.utc))
+    return flow
+
+
+def _build_flow(repo, key):
+    """Chronological flow for one feature: elephant segments, (parallel) subagents with their tool
+    calls, and the user's questions/answers, with estimated costs and loop warnings.
+    Built from events.jsonl + tools.jsonl (+ Claude Code transcripts for token usage)."""
+    sd = repo / ".agent-state"
     now = datetime.now(timezone.utc)
     events = [e for e in read_events(sd / "events.jsonl") if e.get("ticket") == key]
     tools_raw = [e for e in read_events(sd / "tools.jsonl")[-6000:] if e.get("ticket") == key] \
@@ -245,7 +386,8 @@ def build_flow(fixed, query):
         aid, typ = e.get("id"), e.get("agent", "agent")
         if e["ev"] == "start":
             aid = aid or f"{typ}@{e.get('t')}"
-            agents[aid] = {"id": aid, "type": typ, "start": e.get("t"), "end": None, "tools": []}
+            agents[aid] = {"id": aid, "type": typ, "start": e.get("t"), "end": None, "tools": [],
+                           "_tx": e.get("transcript"), "_session": e.get("session"), "_real_id": e.get("id")}
             open_by_type.setdefault(typ, []).append(aid)
         else:
             if not aid or aid not in agents:
@@ -270,6 +412,32 @@ def build_flow(fixed, query):
                                                   "start": c["t"], "end": None, "tools": [], "seconds": None,
                                                   "status": "running"})
         (a["tools"] if a else elephant).append(c)
+
+    # Estimated cost per agent (its own transcript) and for the elephant (main session, during this feature).
+    table = prices()
+    total_usd, unpriced = 0.0, False
+    for a in agents.values():
+        a["loop"] = detect_loop(a["tools"], a["type"]) if a["status"] == "running" or a["tools"] else None
+        a["cost"] = None
+        if a.get("_tx") and a.get("_session") and a.get("_real_id"):
+            f = Path(a["_tx"]).parent / a["_session"] / "subagents" / f"agent-{a['_real_id']}.jsonl"
+            c = cost_of(transcript_entries(f), table)
+            if c["tokens"]["output"] or c["usd"]:
+                a["cost"] = c; total_usd += c["usd"]; unpriced = unpriced or c["unpriced"]
+        for k in ("_tx", "_session", "_real_id"):
+            a.pop(k, None)
+    times = [r.get("t") for r in events + tools_raw if r.get("t")]
+    elephant_cost = None
+    main_tx = {r.get("transcript") for r in events + tools_raw if r.get("transcript") and not r.get("agent_id")}
+    if times and main_tx:
+        t0 = min(times)
+        t1 = max(times) if not any(a["status"] == "running" for a in agents.values()) else "9999"
+        lo, hi = t0[:19], t1[:19]   # compare to the second: hook times have none, transcripts have ms
+        entries = [e for f in main_tx for e in transcript_entries(Path(f)) if not e[3] and lo <= e[0][:19] <= hi]
+        if entries:
+            elephant_cost = cost_of(entries, table)
+            total_usd += elephant_cost["usd"]; unpriced = unpriced or elephant_cost["unpriced"]
+    elephant_loop = detect_loop(elephant, "elephant")
 
     # Questions you were asked (titles from the question files) and your answers.
     qtitles = {}
@@ -312,8 +480,16 @@ def build_flow(fixed, query):
             n.pop("until", None)
         nodes.append(n)
     take_elephant(None)
-    return {"key": key, "generated": now.isoformat(), "nodes": nodes,
-            "totals": {"tool_calls": len(order), "agents": len(agents)}}
+    loops = [{"agent": a["type"].split(":")[-1], "agent_id": a["id"], "running": a["status"] == "running", **a["loop"]}
+             for a in agents.values() if a.get("loop")]
+    if elephant_loop:
+        last = parse_t(elephant[-1]["t"] or "") if elephant else None
+        recent = bool(last) and (now - last).total_seconds() < 900
+        loops.append({"agent": "elephant", "agent_id": None, "running": recent, **elephant_loop})
+    return {"key": key, "generated": now.isoformat(), "nodes": nodes, "loops": loops,
+            "elephant_cost": elephant_cost,
+            "totals": {"tool_calls": len(order), "agents": len(agents),
+                       "cost_usd": round(total_usd, 2) if (total_usd or elephant_cost) else None, "cost_partial": unpriced}}
 
 
 EVIDENCE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",

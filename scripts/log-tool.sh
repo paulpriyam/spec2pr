@@ -30,7 +30,24 @@ jq -c --arg ev "$ev" --arg key "$key" --arg cwd "$cwd/" '
    else "" end) as $s |
   {t: (now|todate), ticket: $key, ev: $ev, tool: $tool, id: (.tool_use_id // null),
    agent_id: (.agent_id // null), agent_type: (.agent_type // null),
+   session: (.session_id // null), transcript: (.transcript_path // null),
    summary: ($s | tostring | gsub("\\s+"; " ") | redact | short(160))}
   + (if $ev == "post" then {ok: ((.tool_response | type) != "object" or (.tool_response.is_error != true and .tool_response.success != false and .tool_response.interrupted != true))} else {} end)
 ' <<<"$input" >> "$root/.agent-state/tools.jsonl" 2>/dev/null
+
+# Loop alert: the same agent ran the same failing command for the 3rd time -> one desktop notification.
+if [ "$ev" = "post" ] && [ "${FF_NOTIFY:-on}" != "off" ] && [ "$(uname)" = "Darwin" ]; then
+  last=$(tail -n 1 "$root/.agent-state/tools.jsonl")
+  if [ "$(jq -r '.ok' <<<"$last")" = "false" ]; then
+    n=$(tail -n 600 "$root/.agent-state/tools.jsonl" | jq -s --argjson l "$last" \
+      '[.[] | select(.ev == "post" and .ok == false and .agent_id == $l.agent_id and .tool == $l.tool and .summary == $l.summary)] | length')
+    if [ "$n" = "3" ]; then
+      who=$(jq -r '(.agent_type // "elephant") | sub("^(spec2pr|feature-factory):"; "")' <<<"$last")
+      what=$(jq -r '"\(.tool): \(.summary)" | .[0:90]' <<<"$last")
+      osascript -e 'on run argv
+display notification (item 2 of argv) with title "spec2pr · possible loop" subtitle (item 1 of argv) sound name "Basso"
+end run' "$who has hit the same failure 3 times" "$what" >/dev/null 2>&1
+    fi
+  fi
+fi
 exit 0
