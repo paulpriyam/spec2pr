@@ -164,6 +164,35 @@ header{align-items:center}
 .tools li.fail .tn,.tools li.fail .td{color:var(--bad)}
 .k-edit{color:var(--gold)} .k-read{color:var(--ele)} .k-run{color:var(--fg)} .k-agent{color:var(--ok)} .k-other{color:var(--muted)}
 .more{font:11px var(--mono);color:var(--muted)}
+/* Flow map: the run as a graph (columns = steps, stacked = parallel) */
+.gwrap{overflow-x:auto;overflow-y:hidden;padding-bottom:6px}
+.g{position:relative}
+.g svg{position:absolute;inset:0;overflow:visible}
+.g-edge{fill:none;stroke:var(--line);stroke-width:2}
+.g-edge.g-draw:not(.g-back){stroke:var(--ok);stroke-dasharray:1;stroke-dashoffset:1;animation:gdraw .7s ease-out forwards}
+.g-edge.g-flow{stroke:var(--ele);stroke-dasharray:6 6;animation:gflow .7s linear infinite}
+.g-edge.g-back{stroke:var(--bad);stroke-dasharray:5 4}
+.g-backlbl{font:600 10px var(--mono);fill:var(--bad);letter-spacing:.04em}
+@keyframes gdraw{to{stroke-dashoffset:0}}
+@keyframes gflow{to{stroke-dashoffset:-12}}
+.g-box{all:unset;box-sizing:border-box;position:absolute;cursor:pointer;border:1px solid var(--line);border-left-width:3px;border-radius:9px;background:var(--panel);
+  padding:6px 10px;display:flex;flex-direction:column;justify-content:center;gap:1px;overflow:hidden;transition:box-shadow .2s,transform .2s}
+.g-box b{font:600 12.5px var(--sans);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-box span{font:11px var(--mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g-box:hover,.g-box:focus-visible{box-shadow:0 0 0 2px var(--ele);outline:none}
+.g-ele{border-left-color:var(--ele)}
+.g-agent{border-left-color:var(--gold)}
+.g-agent.g-done{border-left-color:var(--ok)}
+.g-you{border-left-color:var(--gold);background:color-mix(in srgb,var(--gold) 10%,var(--panel))}
+.g-run{border-color:var(--ele);background:var(--elebg);animation:gpulse 1.6s ease-in-out infinite}
+@keyframes gpulse{50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--ele) 25%,transparent)}}
+.g-fresh{animation:gpop .45s ease-out both}
+.g-run.g-fresh{animation:gpop .45s ease-out both,gpulse 1.6s ease-in-out .45s infinite}
+@keyframes gpop{from{opacity:0;transform:scale(.9)}}
+.fnode.flash .fcard{box-shadow:0 0 0 3px var(--ele);transition:box-shadow .3s}
+.g-legend{display:flex;flex-wrap:wrap;gap:14px;font:11px var(--mono);color:var(--muted);margin-top:8px}
+.g-legend i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:6px}
+@media (prefers-reduced-motion:reduce){.g-edge,.g-box{animation:none !important}.g-edge.g-draw:not(.g-back){stroke-dashoffset:0}}
 .fgrid.one{grid-template-columns:1fr}
 .fgrid:not(.one) .tools li{grid-template-columns:62px minmax(0,1fr) auto}
 .fgrid:not(.one) .tools .tt{display:none}
@@ -363,7 +392,7 @@ function patch(el, html){
   if (el._html === html) return;
   const open = new Set([...el.querySelectorAll("details[data-k]")].filter(d => d.open).map(d => d.dataset.k));
   const closed = new Set([...el.querySelectorAll("details[data-k]")].filter(d => !d.open).map(d => d.dataset.k));
-  const scroll = new Map([...el.querySelectorAll("[data-k]")].map(x => [x.dataset.k, [x.scrollTop, x.scrollLeft, x.scrollTop + x.clientHeight >= x.scrollHeight - 4]]));
+  const scroll = new Map([...el.querySelectorAll("[data-k]")].map(x => [x.dataset.k, [x.scrollTop, x.scrollLeft, x.scrollTop + x.clientHeight >= x.scrollHeight - 4, x.scrollLeft + x.clientWidth >= x.scrollWidth - 4]]));
   if (el.dataset.k) scroll.set(el.dataset.k, [el.scrollTop, el.scrollLeft]);
   el.innerHTML = html;
   el._html = html;
@@ -371,6 +400,7 @@ function patch(el, html){
   const restore = x => {
     const v = scroll.get(x.dataset.k);
     if (x.hasAttribute("data-stick") && (!v || v[2])) { x.scrollTop = x.scrollHeight; return; }
+    if (x.hasAttribute("data-stickx") && (!v || v[3])) { x.scrollLeft = x.scrollWidth; return; }
     if (v) { x.scrollTop = v[0]; x.scrollLeft = v[1]; }
   };
   el.querySelectorAll("[data-k]").forEach(restore);
@@ -516,6 +546,47 @@ function toolList(tools, count, k){
     <span class="ts" title="${esc(c.summary)}">${esc(c.summary || "")}</span>
     <span class="td">${c.status === "running" ? "running…" : c.status === "fail" ? "failed" : c.status === "unknown" ? "?" : c.seconds >= 1 ? fmtDur(c.seconds) : ""}</span></li>`).join("")}</ul>`;
 }
+// Flow map: each flow step is a column; agents that ran at the same time are stacked; a step that goes
+// back to an earlier stage (e.g. builders again after the app check) gets a red dashed "sent back" edge.
+const RANK = {"context-analyst": 0, "goldfish-spec-test": 2, "implementer": 4, "spec-guardian": 5, "tester": 6, "app-verifier": 7, "pr-reviewer": 8, "pr-shepherd": 9};
+const seenG = new Set();
+function flowGraph(nodes){
+  const GAP = 34, BH = 46, VG = 10, PAD = 14, TOP = 18;
+  const W_OF = {elephant: 92, you: 118, agents: 138};
+  const cols = nodes.map((n, i) => {
+    if (n.kind === "elephant") return {i, w: W_OF.elephant, boxes: [{id: "e" + n.t, cls: "g-ele" + (n.running ? " g-run" : ""), title: "Elephant", sub: `${n.count} call${n.count === 1 ? "" : "s"}`}]};
+    if (n.kind === "you") return {i, w: W_OF.you, boxes: [{id: "y" + n.ev + n.t, cls: "g-you", title: n.ev === "ask" ? "Asked you" : "You: " + (n.text || "answered"), sub: n.ev === "ask" ? (n.text || "") : fmtTime(n.t)}]};
+    return {i, w: W_OF.agents, rank: Math.max(...n.agents.map(a => RANK[short(a.type)] ?? -1)),
+      boxes: n.agents.map(a => ({id: "a" + a.id, cls: "g-agent " + (a.status === "running" ? "g-run" : "g-done"), title: short(a.type),
+        sub: `${a.status === "running" ? "running " : ""}${fmtDur(a.seconds)} · ${a.count} call${a.count === 1 ? "" : "s"}`}))};
+  });
+  if (!cols.length) return "";
+  const maxStack = Math.max(1, ...cols.map(c => c.boxes.length));
+  const H = TOP + PAD + maxStack * BH + (maxStack - 1) * VG + PAD;
+  let x = PAD; cols.forEach(c => { c.x = x; x += c.w + GAP; });
+  const W = x - GAP + PAD;
+  const pos = cols.map(c => {
+    const total = c.boxes.length * BH + (c.boxes.length - 1) * VG, y0 = TOP + (H - TOP - total) / 2;
+    return c.boxes.map((b, bi) => ({x: c.x, y: y0 + bi * (BH + VG), w: c.w}));
+  });
+  let lastRank = -1; const edges = [];
+  cols.forEach((c, ci) => {
+    let back = false;
+    if (c.rank !== undefined && c.rank >= 0) { back = c.rank < lastRank; lastRank = c.rank; }
+    if (ci === 0) return;
+    pos[ci - 1].forEach(p => pos[ci].forEach((q, qi) => {
+      const x1 = p.x + p.w, y1 = p.y + BH / 2, x2 = q.x, y2 = q.y + BH / 2, mx = (x1 + x2) / 2, tgt = c.boxes[qi];
+      const fresh = !seenG.has(tgt.id), running = tgt.cls.includes("g-run");
+      edges.push(`<path d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}" class="g-edge${back ? " g-back" : ""}${running ? " g-flow" : ""}${fresh && !running ? " g-draw" : ""}"${fresh && !running && !back ? ' pathLength="1"' : ""}/>`);
+    }));
+    if (back) edges.push(`<text x="${c.x - GAP / 2}" y="${pos[ci][0].y - 8}" class="g-backlbl" text-anchor="middle">sent back</text>`);
+  });
+  const boxes = cols.flatMap((c, ci) => c.boxes.map((b, bi) => {
+    const p = pos[ci][bi], fresh = !seenG.has(b.id); seenG.add(b.id);
+    return `<button class="g-box ${b.cls}${fresh ? " g-fresh" : ""}" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${BH}px" data-fn="${c.i}" title="${esc(b.title + " · " + b.sub)}"><b>${esc(b.title)}</b><span>${esc(b.sub)}</span></button>`;
+  }));
+  return `<div class="g" style="width:${W}px;height:${H}px"><svg width="${W}" height="${H}" aria-hidden="true">${edges.join("")}</svg>${boxes.join("")}</div>`;
+}
 function renderFlow(r, flow){
   const el = document.getElementById("flowview");
   const act = r.tickets.filter(t => isActive(t, r));
@@ -530,14 +601,14 @@ function renderFlow(r, flow){
         return [`<div class="now-line"><b>Elephant</b>${c ? `<span class="mono">last: ${esc(c.tool)}: ${esc(c.summary)}</span><span class="tk">${esc(ago(c.t))}</span>` : `<span class="tk">idle</span>`}</div>`]; })();
   const html = nodes.map((n, i) => {
     const last = i === nodes.length - 1;
-    if (n.kind === "elephant") return `<li class="fnode elephant ${n.running ? "live" : ""}"><span class="fdot"></span><div class="fcard">
+    if (n.kind === "elephant") return `<li class="fnode elephant ${n.running ? "live" : ""}" id="fn-${i}"><span class="fdot"></span><div class="fcard">
       <div class="fhead"><b>Elephant</b><span class="tk">orchestrator · ${n.count} tool call${n.count === 1 ? "" : "s"} · ${esc(fmtTime(n.t))}</span></div>
       ${toolList(n.tools, n.count, "fe-" + n.t)}</div></li>`;
-    if (n.kind === "you") return `<li class="fnode you"><span class="fdot"></span><div class="fcard fyou">
+    if (n.kind === "you") return `<li class="fnode you" id="fn-${i}"><span class="fdot"></span><div class="fcard fyou">
       <div class="fhead"><b>${n.ev === "ask" ? "Asked you" : "You answered"}</b><span class="tk">${esc(fmtTime(n.t))}</span></div>
       <div>${esc(n.text || (n.ev === "ask" ? "a question" : "—"))}</div></div></li>`;
     const live = n.agents.some(a => a.status === "running");
-    return `<li class="fnode agents ${live ? "live" : ""}"><span class="fdot"></span><div class="fcard">
+    return `<li class="fnode agents ${live ? "live" : ""}" id="fn-${i}"><span class="fdot"></span><div class="fcard">
       <div class="fhead"><b>${n.agents.length > 1 ? `${n.agents.length} subagents in parallel` : "Subagent"}</b><span class="tk">${esc(fmtTime(n.t))}</span></div>
       <div class="fgrid ${n.agents.length === 1 ? "one" : ""}">${n.agents.map(a => `<div class="fagent ${a.status}"><div class="fhead"><b>${esc(short(a.type))}</b>
         <span class="pill ${a.status === "running" ? "run" : "ok"}">${a.status === "running" ? "running" : "done"} ${fmtDur(a.seconds)}</span>
@@ -546,10 +617,19 @@ function renderFlow(r, flow){
   patch(el, `<div class="col">${pick}
     <section class="panel now"><h2>Now · ${esc(flow.key)}</h2>${nowLines.join("")}
       <div class="tk">${flow.totals.agents} subagents · ${flow.totals.tool_calls} tool calls so far</div></section>
+    ${nodes.length ? `<section class="panel"><h2>Flow map · click a step to see its tool calls</h2>
+      <div class="gwrap" data-k="graph-${esc(flow.key)}" data-stickx>${flowGraph(nodes)}</div>
+      <div class="g-legend"><span><i style="border-color:var(--ok)"></i>done</span><span><i style="border-color:var(--ele);border-top-style:dashed"></i>running now</span><span><i style="border-color:var(--bad);border-top-style:dashed"></i>sent back for fixes</span></div></section>` : ""}
     ${nodes.length ? `<ol class="flow-list">${html}</ol>` : `<section class="panel empty">The flow fills in as the elephant and its subagents work. Tool calls are recorded from plugin version 0.5.0 on.</section>`}</div>`);
 }
 document.getElementById("flowview").addEventListener("click", ev => {
-  const b = ev.target.closest(".fpick button"); if (b) { flowKey = b.dataset.key; tick(); }
+  const b = ev.target.closest(".fpick button"); if (b) { flowKey = b.dataset.key; tick(); return; }
+  const g = ev.target.closest(".g-box");
+  if (g) {
+    const li = document.getElementById("fn-" + g.dataset.fn); if (!li) return;
+    li.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center"});
+    li.classList.add("flash"); setTimeout(() => li.classList.remove("flash"), 1400);
+  }
 });
 
 async function tick(){

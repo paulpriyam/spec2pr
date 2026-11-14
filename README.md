@@ -9,7 +9,7 @@ code, and opens the pull request. It stops and asks you whenever a decision is y
 
 **[Website](https://paulpriyam.github.io/spec2pr/)** · [Install](#install) · [How it works](#how-it-works) · [The dashboard](#the-dashboard)
 
-![spec2pr dashboard: the live flow of agents filling in while a feature is built](docs/images/spec2pr-demo.gif)
+![spec2pr dashboard: the flow map of agents growing while a feature is built](docs/images/spec2pr-demo.gif)
 
 ## Why
 
@@ -102,11 +102,11 @@ Every project you use spec2pr in is listed on the left.
 
 ![The pipeline view: stages from context to PR, verdicts, and the app check with screenshots](docs/images/pipeline.png)
 
-**Live flow:** what the agents are doing, as it happens. You see the elephant's own steps, every agent it
-starts (side by side when they run in parallel), each tool call they make, and every question you were
-asked.
+**Live flow:** what the agents are doing, as it happens. A flow map at the top shows every step as a
+graph: agents working in parallel stacked side by side, the one running now pulsing, and red dashed lines
+where work was sent back for fixes. Click any step to see its tool calls in the list below.
 
-![The live flow view: implementers running in parallel with their tool calls](docs/images/live-flow.png)
+![The live flow view: a flow map of the run, with a step sent back for fixes and the app check running](docs/images/live-flow.png)
 
 **Needs you:** when a decision is yours, you get a desktop notification and a card with buttons. Answer
 there or in the terminal, whichever is closer.
