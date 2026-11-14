@@ -19,7 +19,7 @@
   color-scheme:dark}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--sans)}
-.layout{display:grid;grid-template-columns:272px minmax(0,1fr);min-height:100vh}
+.layout{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100vh}
 aside{position:sticky;top:0;height:100vh;overflow-y:auto;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:14px;padding:20px 12px}
 .brand{font:600 16px/1.2 var(--sans);padding:0 8px}
 .side-h{font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:0 8px}
@@ -62,10 +62,10 @@ h1 small{font:400 13px var(--mono);color:var(--muted);margin-left:8px}
 .pill.bad{color:var(--bad);border-color:var(--bad);background:var(--badbg)}
 .pill.ok{color:var(--ok);border-color:var(--ok);background:var(--okbg)}
 a{color:var(--ele)}
-.stepper{display:grid;grid-template-columns:repeat(11,minmax(66px,1fr));gap:6px;overflow-x:auto;padding-bottom:4px}
+.stepper{display:grid;grid-template-columns:repeat(11,minmax(78px,1fr));gap:5px;overflow-x:auto;padding-bottom:4px}
 .group{grid-column:span var(--n);font:600 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;padding-bottom:4px;border-bottom:2px solid}
 .g-think{color:var(--ele);border-color:var(--ele)} .g-build{color:var(--gold);border-color:var(--gold)} .g-ship{color:var(--ok);border-color:var(--ok)}
-.step{border:1px solid var(--line);border-radius:8px;padding:8px;font-size:12px;display:flex;flex-direction:column;gap:2px;min-height:58px}
+.step{border:1px solid var(--line);border-radius:8px;padding:8px 6px;font-size:12px;display:flex;flex-direction:column;gap:2px;min-height:58px}
 .step b{font-weight:600}
 .step span{font:11px var(--mono);color:var(--muted)}
 .step.done{border-color:var(--ok);background:var(--okbg)}
@@ -167,7 +167,8 @@ header{align-items:center}
 .fgrid.one{grid-template-columns:1fr}
 .fgrid:not(.one) .tools li{grid-template-columns:62px minmax(0,1fr) auto}
 .fgrid:not(.one) .tools .tt{display:none}
-.step b{overflow-wrap:anywhere}
+.step b{overflow-wrap:normal;word-break:normal;hyphens:none}
+.step span{font-size:10px !important;overflow-wrap:normal;word-break:normal}
 .verify summary{cursor:pointer;font:600 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .verify[open] summary{margin-bottom:10px}
 .vlist li{padding:8px 0;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
@@ -288,7 +289,7 @@ function ticketCard(t, isCurrent, repoName, r){
     </div>
     <div class="meta">
       ${loop("spec", a.spec)}${loop("build", a.build)}${loop("review", a.review)}
-      <div><label>verdicts</label><div style="display:flex;flex-wrap:wrap;gap:6px">${verdicts(t.verdicts)}</div></div>
+      <div><label>verdicts</label><div style="display:flex;flex-direction:row;flex-wrap:wrap;gap:6px;max-width:520px">${verdicts(t.verdicts)}</div></div>
       <div style="flex:1;min-width:200px"><label>last result</label><span class="last">${esc(t.last || "–")}</span></div>
       ${t.pr ? `<div><label>pull request</label><a href="${esc(t.pr)}" target="_blank" rel="noopener">${esc(t.pr.replace(/^https?:\/\/github\.com\//, ""))}</a></div>` : ""}
       ${t.spec_dir ? `<div><label>spec</label><span class="mono">${esc(t.spec_dir)}</span></div>` : ""}
@@ -301,7 +302,7 @@ function ticketCard(t, isCurrent, repoName, r){
 // App check: result per AC with screenshot thumbnails (served from <repo>/.agent-state/<KEY>-verify/).
 function verifyPanel(t, r){
   const v = t._verify, url = f => `/api/evidence?repo=${encodeURIComponent(r.path)}&key=${encodeURIComponent(t.ticket)}&file=${encodeURIComponent(f)}`;
-  const pill = x => `<span class="pill ${x === "PASS" ? "ok" : x === "FAIL" ? "bad" : "mute"}">${esc(x || "?")}</span>`;
+  const pill = x => `<span class="pill ${x === "PASS" ? "ok" : x === "FAIL" ? "bad" : "mute"}">${esc(String(x || "?").replace(/_/g, " "))}</span>`;
   const rows = Object.entries(v.per_ac || {}).map(([ac, x]) => {
     const ev = (x.evidence || []);
     const thumbs = ev.filter(f => /\.(png|jpe?g|webp|gif)$/i.test(f)).map(f => `<a href="${url(f)}" target="_blank" rel="noopener"><img src="${url(f)}" alt="${esc(ac)} evidence ${esc(f)}" loading="lazy"></a>`).join("");

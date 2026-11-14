@@ -1,189 +1,271 @@
 # spec2pr
 
-A Claude Code plugin that takes a feature from a Jira ticket, a GitHub issue or a one-line idea to a
-reviewed, tested pull request, using the **Elephant–Goldfish** model.
+**Give Claude Code a ticket. Get back a reviewed, tested pull request, and watch every step of the way.**
 
-- **Elephant:** `/ship-feature` runs in your main session. It talks to you, writes the spec
-  (with [spec-kit](https://github.com/github/spec-kit)), keeps every decision in `spec.md`, and never
-  edits code itself.
-- **Goldfish:** every subagent starts with no memory and gets only file paths. A zero-context
-  "goldfish" must be able to build from the spec alone before any code is written, and the reviewers
-  judge the result without ever seeing the implementers' reasoning.
+spec2pr is a free plugin for [Claude Code](https://claude.com/claude-code). You hand it a Jira ticket,
+a GitHub issue or a one-line idea. It writes a spec, makes sure the spec is clear enough to build from,
+builds the feature with a team of AI agents, tests it, opens the real app to check it works, reviews the
+code, and opens the pull request. It stops and asks you whenever a decision is yours to make.
 
-```
-/ship-feature PROJ-123
-  context-analyst ─► elephant writes spec ─► goldfish test ─┐ (FAIL: revise, max 3)
-                                                            ▼
-                                              YOU approve the plan
-  implementer ×N ─► spec-guardian ─► tester ─► app-verifier ─► pr-reviewer ─► pr-shepherd ─► YOU merge
-        ▲______________ gaps / failing ACs / blocking findings (max 3) ______|
-```
+**[Website](https://paulpriyam.github.io/spec2pr/)** · [Install](#install) · [How it works](#how-it-works) · [The dashboard](#the-dashboard)
 
-**What you get**
-- **One command from ticket to PR**, with a commit gate: nothing is committed or pushed until the spec
-  check, the tests, the app check and the review all pass.
-- **Checks in the real app:** web pages, Chrome extensions, Android emulator and iOS simulator, with
-  screenshots per acceptance criterion (free local tools: Playwright and Maestro).
-- **Each feature in its own git worktree**, so several features can run at once without touching your
-  main checkout.
-- **A live local dashboard:** every project in a side panel, the pipeline stages, a live flow of the
-  agents and their tool calls, and "Needs you" cards you can answer with one click (plus a desktop
-  notification).
-- **Verify first, decide after:** `/verify-feature` checks work in progress and lets you choose what
-  happens next.
-- Jira / GitHub issue updates at each phase (optional).
+![spec2pr dashboard: the live flow of agents filling in while a feature is built](docs/images/spec2pr-demo.gif)
+
+## Why
+
+AI coding agents are fast, but on real features they tend to drift: they guess when the requirements
+are vague, mark their own homework, and lose track of decisions made an hour ago. spec2pr fixes that
+with one simple idea.
+
+- **One agent remembers everything.** We call it the *elephant*. It talks to you, writes the spec and
+  keeps every decision in it. It never writes code itself.
+- **Every other agent starts fresh.** We call them *goldfish*. Each one gets only the spec and the files
+  it needs, nothing else. If a goldfish can't build from the spec alone, the spec isn't good enough yet,
+  so it gets fixed *before* any code is written.
+- **Nobody checks their own work.** Code is checked against the spec, tested, tried out in the running
+  app and reviewed, each time by an agent that never saw how it was written.
 
 ## Install
 
-Requirements: [Claude Code](https://claude.com/claude-code), `git`, `jq`, `python3`, `node`, and
-[`gh`](https://cli.github.com) (logged in, for PRs). For Jira, Confluence or Figma input, connect those
-connectors in Claude Code.
+You need [Claude Code](https://claude.com/claude-code), `git`, `python3`, `node`, `jq`, and the
+[GitHub CLI](https://cli.github.com) (`gh auth login`).
 
 ```bash
 claude plugin marketplace add paulpriyam/spec2pr
 claude plugin install spec2pr@spec2pr
 ```
 
-Restart Claude Code, then in the repo you want to work on:
+Restart Claude Code. spec2pr writes its specs with [spec-kit](https://github.com/github/spec-kit),
+so set that up once per machine and once per project:
 
 ```bash
-# spec-kit (once per machine, then once per repo)
-uv tool install specify-cli --from git+https://github.com/github/spec-kit.git
-specify init --here --ai claude
+uv tool install specify-cli --from git+https://github.com/github/spec-kit.git   # once per machine
+specify init --here --ai claude                                                 # once per project
 ```
 
-Optional:
-- **App checks:** run `scripts/verify-env.sh setup web` from the plugin folder (add `extension`,
-  `android` or `ios` as needed), or let the first feature that needs it ask you. Android needs Android
-  Studio with an emulator, and iOS needs Xcode.
-- **Status line:** see [Monitoring](#monitoring).
-- **Clickable notifications on macOS:** `brew install terminal-notifier`.
+## Your first feature
 
-To try it without installing: `git clone https://github.com/paulpriyam/spec2pr` and run
-`claude --plugin-dir ./spec2pr`.
+Open Claude Code in your project and type one of these:
 
-**Updating:** `claude plugin marketplace update spec2pr && claude plugin update spec2pr@spec2pr`,
-then restart Claude Code.
+```text
+/ship-feature PROJ-123                                   a Jira ticket
+/ship-feature #42                                        a GitHub issue
+/ship-feature saved-cards "Let users save their cards"   just an idea
+```
 
-**What stays on your machine:** each repo's `.agent-state/` (feature progress, git-ignored),
-`.ff-worktrees/` (feature working copies) and `~/.spec2pr/` (dashboard project list, testing
-tools). To move a feature to another machine, push its branch and run `/ship-feature KEY --adopt` there.
+The dashboard opens in your browser. From there:
 
-## Contents
+1. spec2pr reads the ticket and any linked docs or designs, and asks you about anything unclear.
+2. It writes the spec and tests it on a goldfish. You'll see a **Needs you** card: read the plan and
+   press **Go**.
+3. It builds, tests, checks the app and reviews, fixing what fails along the way.
+4. It opens the pull request. Merging it is up to you.
+
+Already halfway through something? Run **`/verify-feature`**. It checks what you have so far in the
+running app, shows you what works and what doesn't, and asks whether to finish it, ship it, or stop.
+
+## How it works
+
+```mermaid
+flowchart LR
+    T["Ticket, issue<br/>or idea"] --> C["Gather<br/>requirements"]
+    C --> S["Write the spec<br/>(elephant)"]
+    S --> G{"Goldfish test:<br/>buildable from<br/>the spec alone?"}
+    G -- "no: fix the spec" --> S
+    G -- yes --> A(["You approve"])
+    A --> B["Build<br/>(agents in parallel)"]
+    B --> K["Check against<br/>the spec"]
+    K --> X["Test every<br/>acceptance criterion"]
+    X --> V["Try it in the<br/>running app"]
+    V --> R["Code review"]
+    R --> P(["Pull request"])
+    K -. gaps .-> B
+    X -. failures .-> B
+    V -. failures .-> B
+    R -. blocking issues .-> B
+```
+
+Every arrow back to **Build** is capped, so a stuck feature stops and asks you instead of looping
+forever. Nothing can be committed or pushed until the spec check, the tests, the app check and the review
+have all passed.
+
+Each feature is built in **its own copy of your repo** (a git worktree), so your main checkout stays
+untouched and you can run several features at once, one Claude Code session each.
+
+## The dashboard
+
+Everything happens on a local page at `http://127.0.0.1:7788`. It opens by itself; `/feature-dashboard`
+brings it back.
+
+**Pipeline:** where each feature is, what's being done right now, and every check's result.
+Every project you use spec2pr in is listed on the left.
+
+![The pipeline view: stages from context to PR, verdicts, and the app check with screenshots](docs/images/pipeline.png)
+
+**Live flow:** what the agents are doing, as it happens. You see the elephant's own steps, every agent it
+starts (side by side when they run in parallel), each tool call they make, and every question you were
+asked.
+
+![The live flow view: implementers running in parallel with their tool calls](docs/images/live-flow.png)
+
+**Needs you:** when a decision is yours, you get a desktop notification and a card with buttons. Answer
+there or in the terminal, whichever is closer.
+
+![A Needs you card asking to approve the spec, with Go, Change the spec and Stop buttons](docs/images/needs-you.png)
+
+**Checked in the real app:** for every acceptance criterion, a pass or fail with a screenshot as proof.
+
+![App check results: each acceptance criterion with a pass or fail and a screenshot](docs/images/app-check.png)
+
+## Checking the real app
+
+After the tests pass, an agent opens your app and goes through each acceptance criterion the way a user
+would, taking screenshots as it goes. It works with:
+
+| What you build | How it's checked |
+|---|---|
+| Websites and web apps | [Playwright](https://playwright.dev) in a real browser |
+| Chrome extensions | Playwright, with your extension loaded |
+| Android apps | [Maestro](https://maestro.mobile.dev) on the Android emulator |
+| iOS apps | Maestro on the Xcode simulator |
+
+All of these are free and run on your machine. The first time a feature needs one, spec2pr asks if it
+may install it. Android needs Android Studio with an emulator, and iOS needs Xcode.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `/ship-feature <ticket or name>` | Take a feature from start to pull request |
+| `/verify-feature` | Check work in progress in the running app, then decide what's next |
+| `/feature-dashboard` | Open the dashboard |
+| `/feature-status` | A quick text summary of where a feature is |
+| `/goldfish-check <file>` | Test any spec or design doc: could someone build from it alone? |
+
+## Good to know
+
+- **Your code stays local.** The dashboard runs only on your machine (`127.0.0.1`). Pipeline progress is
+  kept in a git-ignored `.agent-state/` folder in each project. Passwords and tokens are blanked out of
+  anything it records.
+- **Jira and GitHub are optional.** With a Jira ticket or a GitHub issue, spec2pr posts short progress
+  updates. With a plain idea, no ticket system is involved. For Jira, Confluence or Figma, connect those
+  connectors in Claude Code.
+- **It never merges.** Merging the pull request is always your call.
+
+## Reference
+
+<details>
+<summary><b>All <code>/ship-feature</code> options</b></summary>
+
+```text
+/ship-feature PROJ-123                                  Jira ticket
+/ship-feature #42                                       GitHub issue
+/ship-feature saved-cards "description"                 your own idea
+/ship-feature saved-cards --doc notes/cards.md          requirements in a file
+/ship-feature saved-cards --spec specs/012-saved-cards  use spec docs that already exist
+/ship-feature saved-cards --adopt                       work already in progress: write the spec from the code
+```
+
+| Option | Effect |
+|---|---|
+| `--from goldfish\|implement\|guardian\|verify\|reviewer` | Start from a later stage |
+| `--fast` | Skip the goldfish test |
+| `--base <branch>` | Branch to build on and compare against (default: the repo's default branch) |
+| `--here` | Work in your current checkout instead of a separate worktree |
+| `--no-dashboard` | Don't open the dashboard |
+
+`/verify-feature` takes `--url http://localhost:3000` to check an app you already have running, and
+`--platform web|extension|android|ios` to choose what to check.
+</details>
+
+<details>
+<summary><b>Worktrees: one copy of the repo per feature</b></summary>
+
+New features are built in `<repo>/.ff-worktrees/<name>` on branch `ff/<name>`. Your untracked `.env`
+files are copied in and dependencies are installed automatically (pnpm, yarn, bun, npm, uv or poetry).
+Put a `.ff-setup` script in the repo root to set up a worktree your own way, or set
+`FF_WORKTREE_SETUP=none` to skip setup. When a feature is done you're asked whether to remove its
+worktree; the branch is kept.
+
+Tools that scan the whole repo, such as a root-level `tsc` or jest without `roots`, may also pick up
+`.ff-worktrees/`. Exclude that folder in their config.
+</details>
+
+<details>
+<summary><b>App check setup by hand</b></summary>
+
+From the plugin folder (`~/.claude/plugins/cache/spec2pr/spec2pr/<version>`):
+
+```bash
+scripts/verify-env.sh check                          # what's ready on this machine
+scripts/verify-env.sh setup web                      # Playwright + Chromium (also covers Chrome extensions)
+scripts/verify-env.sh setup android                  # Maestro, using Android Studio's Java if present
+scripts/verify-env.sh setup ios                      # Maestro for the Xcode simulator
+```
+
+Maestro needs Java 17 or newer. Setup uses Android Studio's bundled Java when it finds it; otherwise it
+downloads Eclipse Temurin 17 into `~/.spec2pr/jdk`. No Homebrew or admin rights are needed.
+</details>
+
+<details>
+<summary><b>Settings and status line</b></summary>
+
+| Setting | Effect |
+|---|---|
+| `FF_DASHBOARD=off` | Never open the dashboard |
+| `FF_DASHBOARD_PORT=7788` | Dashboard port |
+| `FF_NOTIFY=off` | No desktop notifications |
+| `FF_WORKTREE_SETUP="<command>"` or `none` | How a new worktree is set up |
+
+Clickable notifications on macOS: `brew install terminal-notifier`.
+
+Status line showing the current feature and phase, in `~/.claude/settings.json`:
+
+```json
+{ "statusLine": { "type": "command", "command": "~/.claude/plugins/cache/spec2pr/spec2pr/<version>/scripts/statusline.sh" } }
+```
+
+The dashboard lists projects from `~/.spec2pr/repos.txt`; delete a line there to drop a project.
+</details>
+
+<details>
+<summary><b>Customising</b></summary>
+
+- **Models:** the `model:` line at the top of each file in `agents/` (`opus`, `sonnet` or `haiku`).
+- **Jira status names:** the transitions in `commands/ship-feature.md`.
+- **Retry limits and the `--fast` rule:** `commands/ship-feature.md`.
+- **Jira tools:** `context-analyst` and `jira-sync` list tools for both the claude.ai Atlassian connector
+  and a local `atlassian` MCP server; remove the one you don't use.
+
+The commit gate catches skipped steps; it isn't a security boundary.
+</details>
+
+<details>
+<summary><b>What's in this repo</b></summary>
 
 | Path | What |
 |---|---|
-| `commands/ship-feature.md` | The orchestrator (elephant): `/ship-feature KEY` |
-| `commands/verify-feature.md` | `/verify-feature`: check work in progress in the running app, then decide |
-| `commands/feature-status.md` | `/feature-status [KEY]`: phase, verdicts, recent events |
-| `commands/feature-dashboard.md` | `/feature-dashboard`: open the live dashboard |
-| `commands/goldfish-check.md` | `/goldfish-check <spec>`: run the goldfish test on any doc |
+| `commands/` | The slash commands. `ship-feature.md` is the elephant's playbook. |
 | `agents/` | context-analyst, goldfish-spec-test, implementer, spec-guardian, tester, app-verifier, pr-reviewer, pr-shepherd, jira-sync |
-| `hooks/hooks.json` | Commit/PR gate, subagent and tool-call log, dashboard auto-open |
-| `dashboard/` | The local dashboard (Python standard library only, bound to 127.0.0.1) |
-| `scripts/` | Worktrees, questions, environment setup for app checks, status line |
+| `hooks/hooks.json` | Commit gate, activity log, dashboard auto-open |
+| `dashboard/` | The local dashboard (Python standard library only) |
+| `scripts/` | Worktrees, questions, app-check setup, status line |
+| `docs/` | The website and the images in this README |
+</details>
 
-### Nested subagents
-Only two agents can start other agents, and only of a fixed type:
-- `pr-shepherd` → `implementer` (one per PR review thread, in parallel)
-- `tester` → `tester` (split test writing when there are many ACs)
+## Updating
 
-`goldfish-spec-test` and `pr-reviewer` deliberately cannot spawn or look things up beyond their
-inputs; that independence is the point of them.
+```bash
+claude plugin marketplace update spec2pr && claude plugin update spec2pr@spec2pr
+```
+
+Then restart Claude Code.
 
 ## Contributing
 
 Issues and pull requests are welcome. If you change the plugin, raise `version` in
-`.claude-plugin/plugin.json`: Claude Code only picks up a new version.
+`.claude-plugin/plugin.json`, because Claude Code only picks up new versions.
 
 ## License
 
 [MIT](LICENSE)
-
-## Usage
-
-```text
-/ship-feature PROJ-123                         # Jira ticket
-/ship-feature #42                              # GitHub issue (progress comments + "Closes #42")
-/ship-feature saved-cards "Let users save and delete cards"   # your own project, no ticket
-/ship-feature saved-cards --doc notes/cards.md # your own project, requirements in a file
-/ship-feature saved-cards --spec specs/012-saved-cards        # spec docs already exist
-/ship-feature saved-cards --adopt              # mid-development: write spec from the code + this chat
-/ship-feature saved-cards --adopt --fast       # same, skip the goldfish spec test
-```
-Options: `--from goldfish|implement|guardian|reviewer`, `--base <branch>`, `--no-dashboard`.
-
-**It checks the feature in the real app.** After the tests pass, the `app-verifier` agent runs the
-app and walks through every acceptance criterion like a user, taking screenshots as proof. They show
-up per criterion on the dashboard. It covers web pages and Chrome extensions (Playwright), and the
-Android emulator and iOS simulator (Maestro, or plain adb / simctl as a fallback). Failures go back to
-the implementer like any other check, and the PR gets a "Checked in the running app" section.
-Features with nothing user-visible are marked SKIP. All tools are free and local. The first time a
-platform is needed you're asked once whether to install them; or do it yourself:
-`scripts/verify-env.sh check` shows what's ready, and `scripts/verify-env.sh setup web|extension|android|ios`
-installs it. Android needs Android Studio with an emulator, and iOS needs Xcode, both installed by
-you. Maestro needs Java 17+: setup uses Android Studio's bundled Java if present, otherwise it
-downloads Eclipse Temurin 17 into `~/.spec2pr/jdk` (no Homebrew or admin rights needed).
-
-**Verify first, decide after.** In the middle of a feature, run `/verify-feature` (or
-`/verify-feature <name>`). It finds or writes the spec, checks what is built so far in the running app,
-shows the result per acceptance criterion, and asks: **Build the rest and ship** (fixes the failures and
-unfinished tasks, then tests, review, PR), **Ship it** (when everything passed), or **Stop here**
-(continue later with `/ship-feature <name> --from implement` or `--from guardian`). It works in your
-current checkout; use `--url http://localhost:3000` to check an app you already have running, and
-`--platform web|extension|android|ios` to pick what to check.
-
-**Each feature gets its own working copy.** `/ship-feature` builds every new feature in a separate
-git worktree at `<repo>/.ff-worktrees/<KEY>` on branch `ff/<KEY>`, so your main checkout stays
-untouched and you can run several features at once (one Claude session each, same repo). Untracked
-`.env*` files are copied in and dependencies installed automatically (pnpm/yarn/bun/npm, uv, poetry);
-put a `.ff-setup` script in the repo root to customise that, or set `FF_WORKTREE_SETUP=none` to skip
-it. When the feature is finished you're asked whether to remove the working copy (the branch is kept).
-Use `--here` to work in the current checkout instead; `--adopt` always works in place.
-`scripts/worktree.sh list` shows a repo's feature copies. Note: some tools that scan the whole repo
-(e.g. a root-level `tsc` or jest without `roots`) may also see `.ff-worktrees/`; exclude it there.
-
-## Monitoring
-
-- **Live dashboard:** opens automatically when you run `/ship-feature` (opt out with `--no-dashboard`
-  or `FF_DASHBOARD=off`). Reopen with `/feature-dashboard` or `scripts/dashboard.sh`. One server shows
-  every project you've run `/ship-feature` in (registered in `~/.spec2pr/repos.txt`), but it opens
-  on the project you launched it from (http://127.0.0.1:7788/?repo=<path>); use the Project selector to
-  switch or pick "All projects". If the running server is older than the installed plugin, it is restarted
-  automatically. To drop an old project from the list, delete its line in `repos.txt`. It refreshes every
-  2 s: phase stepper, loop counts, verdicts, subagents running now, time per agent, event timeline.
-  Python 3 stdlib only, bound to localhost.
-- **Side panel:** every project is listed on the left with its status and a "Needs you" count. The one
-  you launched the dashboard from is on top and selected; click any other to switch. "All projects"
-  at the bottom gives the overview.
-- **Live flow:** the "Live flow" tab shows, in order, what the elephant did (its tool calls), every
-  subagent it started (side by side when they ran in parallel) with their tool calls, and each question
-  you were asked and your answer. A "Now" card on top says what is running at this moment. Tool calls
-  are recorded by a background hook (it never slows Claude down) into `.agent-state/tools.jsonl`, only
-  while a pipeline is active; tokens, passwords and API keys in commands are blanked out.
-- Task list in the session shows the phase checklist.
-- **Needs you:** when the pipeline must wait on you (spec approval, open questions, a stuck loop, PR
-  comments that need a human), you get a macOS notification and a "Needs you" card on the dashboard with
-  buttons (Go / Change the spec / Stop). Answer there or in the terminal, whichever is closer. The status
-  line shows `⚑ NEEDS YOU` and the browser tab shows the count. Set `FF_NOTIFY=off` to mute the
-  notification; install `terminal-notifier` if you want clicking it to open the dashboard.
-- **Status at a glance:** each feature shows Working / Needs you / Blocked / PR in review / Done and a
-  "Now:" line ("Goldfish test of the spec, round 2/3"). "All projects" lists every project with its
-  feature, status and last update; click a row to open it. All of it is worked out from `.agent-state/`.
-- `/feature-status` for a summary at any time.
-- `tail -f .agent-state/events.jsonl | jq` for the live subagent timeline (written by hooks).
-- Jira comments from `jira-sync` at every phase.
-
-State lives in `.agent-state/` in the repo (added to `.git/info/exclude`). The hooks only act while
-`.agent-state/current` exists, so they don't affect normal work in other sessions.
-
-## Customise
-
-- Jira status names: edit the transitions in `commands/ship-feature.md` (steps 5 and 11).
-- Models: `model:` in each agent's frontmatter (`opus`, `sonnet`, `haiku`).
-- Loop limits and the `--fast` rule: `commands/ship-feature.md`.
-- MCP tool names in `context-analyst` / `jira-sync` cover both the claude.ai Atlassian connector and
-  a local `atlassian` MCP server; remove the one you don't use.
-
-The commit gate is a guardrail against skipped steps, not a security boundary: the orchestrator writes
-the verdicts it reads.
