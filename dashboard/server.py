@@ -139,6 +139,7 @@ def snapshot(fixed):
                     try:
                         fl = build_flow_for(repo, data["ticket"])
                         data["_cost"] = fl["totals"]["cost_usd"]
+                        data["_tokens"] = fl["totals"]["tokens"]
                         data["_loops"] = [l for l in fl["loops"] if l["running"]]
                     except Exception:
                         pass
@@ -416,6 +417,8 @@ def _build_flow(repo, key):
     # Estimated cost per agent (its own transcript) and for the elephant (main session, during this feature).
     table = prices()
     total_usd, unpriced = 0.0, False
+    total_tok = {"input": 0, "output": 0, "cache_write": 0, "cache_read": 0}
+    add_tok = lambda c: [total_tok.__setitem__(k, total_tok[k] + c["tokens"][k]) for k in total_tok]
     for a in agents.values():
         a["loop"] = detect_loop(a["tools"], a["type"]) if a["status"] == "running" or a["tools"] else None
         a["cost"] = None
@@ -423,7 +426,7 @@ def _build_flow(repo, key):
             f = Path(a["_tx"]).parent / a["_session"] / "subagents" / f"agent-{a['_real_id']}.jsonl"
             c = cost_of(transcript_entries(f), table)
             if c["tokens"]["output"] or c["usd"]:
-                a["cost"] = c; total_usd += c["usd"]; unpriced = unpriced or c["unpriced"]
+                a["cost"] = c; total_usd += c["usd"]; unpriced = unpriced or c["unpriced"]; add_tok(c)
         for k in ("_tx", "_session", "_real_id"):
             a.pop(k, None)
     times = [r.get("t") for r in events + tools_raw if r.get("t")]
@@ -436,7 +439,7 @@ def _build_flow(repo, key):
         entries = [e for f in main_tx for e in transcript_entries(Path(f)) if not e[3] and lo <= e[0][:19] <= hi]
         if entries:
             elephant_cost = cost_of(entries, table)
-            total_usd += elephant_cost["usd"]; unpriced = unpriced or elephant_cost["unpriced"]
+            total_usd += elephant_cost["usd"]; unpriced = unpriced or elephant_cost["unpriced"]; add_tok(elephant_cost)
     elephant_loop = detect_loop(elephant, "elephant")
 
     # Questions you were asked (titles from the question files) and your answers.
@@ -489,7 +492,8 @@ def _build_flow(repo, key):
     return {"key": key, "generated": now.isoformat(), "nodes": nodes, "loops": loops,
             "elephant_cost": elephant_cost,
             "totals": {"tool_calls": len(order), "agents": len(agents),
-                       "cost_usd": round(total_usd, 2) if (total_usd or elephant_cost) else None, "cost_partial": unpriced}}
+                       "cost_usd": round(total_usd, 2) if (total_usd or elephant_cost) else None, "cost_partial": unpriced,
+                       "tokens": total_tok if any(total_tok.values()) else None}}
 
 
 EVIDENCE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
