@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>spec2pr Monitor</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&family=VT323&display=swap">
+<script>try{document.documentElement.dataset.skin=localStorage.getItem("spec2pr-skin")||"arcade"}catch(e){document.documentElement.dataset.skin="arcade"}</script>
 <style>
 /* Layout: project side panel | main (header, needs-you, ticket cards, running/time-per-agent | timeline) */
 :root{
@@ -238,12 +239,130 @@ header{align-items:center}
 .htable th{font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 .htable td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:baseline}
 #learnview details.panel>summary{cursor:pointer;font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* ===== Arcade look (default): neon on black, digital rain, scanlines, pixel fonts and borders =====
+   One thing blinks (the NEEDS YOU label); everything else glows steadily, so it can stay open all day. */
+html[data-skin=arcade]{
+  --bg:#03060a; --panel:#070d12; --fg:#d2ffdc; --muted:#8fd1a8; --line:#1b4a30; --done:#1f7a2a;
+  --ele:#2ee6ff; --gold:#ffd23f; --ok:#39ff14; --warn:#ff9f1c; --bad:#ff3d6e; --badbg:#25060f; --okbg:#05220c; --elebg:#032431;
+  --sans:"VT323",ui-monospace,Menlo,monospace; --mono:"VT323",ui-monospace,Menlo,monospace; --pix:"Press Start 2P",ui-monospace,monospace;
+  color-scheme:dark}
+html[data-skin=arcade] *{border-radius:0 !important;font-size-adjust:.56}
+html[data-skin=arcade] body{font-size:16px;line-height:1.3;background:radial-gradient(ellipse 80% 60% at 50% -10%,#06281a 0%,var(--bg) 60%) fixed,var(--bg);
+  text-shadow:0 0 4px color-mix(in srgb,var(--ok) 22%,transparent)}
+html[data-skin=arcade] ::selection{background:var(--ok);color:#000}
+#rain{display:none}
+html[data-skin=arcade] #rain{display:block;position:fixed;inset:0;width:100%;height:100%;opacity:.12;pointer-events:none;z-index:0}
+html[data-skin=arcade] .layout{position:relative;z-index:1}
+html[data-skin=arcade] body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:5;
+  background:repeating-linear-gradient(to bottom,rgba(0,0,0,.14) 0 1px,transparent 1px 4px),radial-gradient(ellipse at center,transparent 62%,rgba(0,0,0,.5) 100%)}
+html[data-skin=arcade] aside{background:rgba(2,8,5,.92);border-right:2px solid var(--line)}
+html[data-skin=arcade] .panel{background:var(--panel);border:2px solid var(--line);box-shadow:4px 4px 0 #000,inset 0 0 30px rgba(57,255,20,.04)}
+/* pixel font only for titles, tabs, pills and the logo */
+html[data-skin=arcade] :is(.brand,h1,.panel h2,.side-h,.pill,.tabs button,.key,.badge,details>summary,.skin button,.cost,.score){
+  font-family:var(--pix) !important;font-size-adjust:none;letter-spacing:0 !important;font-weight:400 !important}
+html[data-skin=arcade] h1{font-size:17px;line-height:1.4;color:var(--ok);text-shadow:0 0 9px color-mix(in srgb,var(--ok) 55%,transparent)}
+html[data-skin=arcade] .panel h2,html[data-skin=arcade] .side-h,html[data-skin=arcade] details>summary{font-size:10px;line-height:1.5;color:var(--ele);text-shadow:0 0 8px color-mix(in srgb,var(--ele) 45%,transparent)}
+html[data-skin=arcade] .pill,html[data-skin=arcade] .cost{font-size:9.5px;line-height:1;padding:6px 8px;border-width:2px;text-shadow:none}
+html[data-skin=arcade] .pj .pill{font-size:8.5px}
+/* small labels: terminal font in capitals (readable), not the wide pixel font */
+html[data-skin=arcade] :is(.group,.meta label,.lrow span,.htable th,.activity::before){font-family:var(--mono) !important;font-size:14px !important;letter-spacing:.08em !important;font-weight:400 !important;text-transform:uppercase}
+html[data-skin=arcade] .key{font-size:12px;color:var(--gold);text-shadow:0 0 8px color-mix(in srgb,var(--gold) 50%,transparent)}
+html[data-skin=arcade] .badge{font-size:9px;color:#000;text-shadow:none}
+html[data-skin=arcade] :is(.ask .msg,.choices button span,.tk,.g-legend,.lmeta,.step span){font-size:14px}
+html[data-skin=arcade] :is(.tk,.empty,.path,.step span,.lmeta){text-shadow:none}
+/* brand: pixel goldfish + cursor (steady) */
+.brand .fish,.brand .cur{display:none}
+html[data-skin=arcade] .brand{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ok);text-shadow:0 0 10px color-mix(in srgb,var(--ok) 60%,transparent)}
+html[data-skin=arcade] .brand .fish{display:block}
+html[data-skin=arcade] .brand .cur{display:inline}
+@keyframes blink{50%{opacity:.25}}
+/* look switch */
+.skin{display:flex;gap:4px;padding:0 8px}
+.skin button{all:unset;cursor:pointer;font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:4px 8px}
+.skin button[aria-pressed=true]{color:var(--fg);border-color:var(--ele);background:var(--elebg)}
+html[data-skin=arcade] .skin button{font-size:8.5px;padding:7px 8px;border-width:2px;text-shadow:none}
+html[data-skin=arcade] .skin button[aria-pressed=true]{background:var(--ok);color:#000;border-color:var(--ok)}
+/* projects, tabs, buttons */
+html[data-skin=arcade] .pj{border-width:2px}
+html[data-skin=arcade] .pj.sel{border-color:var(--ok);background:var(--okbg);box-shadow:0 0 12px rgba(57,255,20,.2)}
+html[data-skin=arcade] .tabs{border:2px solid var(--line);background:#000}
+html[data-skin=arcade] .tabs button{font-size:9.5px;padding:9px 12px}
+html[data-skin=arcade] .tabs button[aria-selected=true]{background:var(--ok);color:#000;text-shadow:none}
+html[data-skin=arcade] :is(.choices button,.send,.lbtn){border-width:2px;box-shadow:3px 3px 0 #000;font-size:17px;text-shadow:none;transition:transform .05s}
+html[data-skin=arcade] :is(.choices button,.send,.lbtn):active:not(:disabled){transform:translate(3px,3px);box-shadow:none}
+html[data-skin=arcade] :is(.choices button.rec,.lbtn.rec){background:var(--ok);border-color:var(--ok);color:#000}
+html[data-skin=arcade] .choices button.rec span{color:#063}
+html[data-skin=arcade] .dot{border-radius:0;width:9px;height:9px;box-shadow:0 0 8px var(--ok)}
+html[data-skin=arcade] .dot.off{box-shadow:0 0 8px var(--bad)}
+/* needs you: the one thing that blinks is its label; the card glows slowly, with notched 8-bit corners */
+html[data-skin=arcade] .ask{border:none;margin:4px;
+  box-shadow:0 -3px 0 0 var(--gold),0 3px 0 0 var(--gold),-3px 0 0 0 var(--gold),3px 0 0 0 var(--gold),7px 7px 0 0 #000;
+  animation:askpulse 3s ease-in-out infinite}
+@keyframes askpulse{50%{box-shadow:0 -3px 0 0 var(--gold),0 3px 0 0 var(--gold),-3px 0 0 0 var(--gold),3px 0 0 0 var(--gold),7px 7px 0 0 #000,0 0 34px 2px color-mix(in srgb,var(--gold) 45%,transparent)}}
+html[data-skin=arcade] .ask-head b{font-size:21px;color:var(--gold);text-shadow:0 0 8px color-mix(in srgb,var(--gold) 45%,transparent)}
+html[data-skin=arcade] .pill.need{animation:blink 1.1s steps(1) infinite}
+html[data-skin=arcade] .pill.need::before{content:"▶ "}
+.hint{display:none}
+html[data-skin=arcade] .hint{display:block;font:15px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:color-mix(in srgb,var(--gold) 75%,var(--muted));margin-bottom:-4px}
+/* stepper: done recedes, pending is dashed, the running stage leads */
+html[data-skin=arcade] .step{position:relative;border-width:2px;padding-right:18px;border-style:dashed;color:var(--muted)}
+html[data-skin=arcade] .step::after{content:"";position:absolute;top:8px;right:7px;width:6px;height:6px;background:var(--line)}
+html[data-skin=arcade] .step.done{border-style:solid;border-color:var(--done);background:color-mix(in srgb,var(--okbg) 70%,transparent);color:color-mix(in srgb,var(--fg) 75%,transparent)}
+html[data-skin=arcade] .step.done::after{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+html[data-skin=arcade] .step.active{border-style:solid;border-color:var(--ele);background:var(--elebg);color:var(--fg);transform:translateY(-2px);
+  box-shadow:4px 4px 0 #000,0 0 16px color-mix(in srgb,var(--ele) 70%,transparent);animation:none}
+html[data-skin=arcade] .step.active b::before{content:"▶ ";color:var(--ele)}
+html[data-skin=arcade] .step.active::after{width:8px;height:8px;top:7px;right:6px;background:var(--gold);box-shadow:0 0 10px var(--gold);animation:pellet 1.6s ease-in-out infinite}
+@keyframes pellet{50%{transform:scale(1.5)}}
+html[data-skin=arcade] .step.failed{border-style:solid}
+html[data-skin=arcade] .step.failed::after{background:var(--bad);box-shadow:0 0 6px var(--bad)}
+html[data-skin=arcade] .group{border-bottom-width:3px;border-bottom-style:dashed}
+/* scoreboard: loops as 8-bit counters, fix rounds left as lives */
+.score,.lives{display:none}
+html[data-skin=arcade] .loop .plain{display:none}
+html[data-skin=arcade] .score{display:inline;font-size:12px;color:var(--fg)}
+html[data-skin=arcade] .loop.hot .score{color:var(--warn)} html[data-skin=arcade] .loop.max .score{color:var(--bad)}
+html[data-skin=arcade] .lives{display:flex;gap:4px;margin-top:6px}
+html[data-skin=arcade] .lives i{width:9px;height:9px;background:var(--ok);box-shadow:0 0 6px var(--ok)}
+html[data-skin=arcade] .lives i.spent{background:var(--line);box-shadow:none}
+/* bars and charts made of blocks */
+html[data-skin=arcade] .bar{background:repeating-linear-gradient(90deg,var(--gold) 0 6px,transparent 6px 8px);opacity:1;height:12px}
+html[data-skin=arcade] .tb i{width:20px;background:repeating-linear-gradient(0deg,var(--gold) 0 6px,transparent 6px 8px)}
+html[data-skin=arcade] .tb i.zero{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+/* flow map */
+html[data-skin=arcade] .g-box{border-width:2px;border-left-width:4px;background:#020806;text-shadow:none}
+html[data-skin=arcade] .g-box b{font-size:14px;line-height:1.1}
+html[data-skin=arcade] .g-box span{font-size:13px;line-height:1.1}
+html[data-skin=arcade] .g-run{box-shadow:0 0 14px var(--ele);animation:none}
+html[data-skin=arcade] .g-edge{stroke-width:3;stroke-linecap:square}
+html[data-skin=arcade] .ctx,html[data-skin=arcade] .ask textarea{background:#000;border:2px solid var(--line);font-size:16px}
+html[data-skin=arcade] .lesson{border-width:2px;border-left-width:4px;background:#020806}
+html[data-skin=arcade] ::-webkit-scrollbar{width:10px;height:10px}
+html[data-skin=arcade] ::-webkit-scrollbar-track{background:#000}
+html[data-skin=arcade] ::-webkit-scrollbar-thumb{background:var(--line);border:2px solid #000}
+/* phones: a compact top bar, big tappable choices */
+@media (max-width:800px){
+  html[data-skin=arcade] aside{flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 14px}
+  html[data-skin=arcade] aside .side-h{display:none}
+  html[data-skin=arcade] .brand{font-size:11px}
+  html[data-skin=arcade] .skin{margin-left:auto;padding:0}
+  html[data-skin=arcade] #projects{width:100%}
+  html[data-skin=arcade] .pj{min-width:180px;padding:7px 9px}
+  html[data-skin=arcade] .pj-all{display:none}
+  html[data-skin=arcade] .path{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  html[data-skin=arcade] .choices{flex-direction:column}
+  html[data-skin=arcade] .choices button{max-width:none;min-height:46px;justify-content:center}
+}
+@media (prefers-reduced-motion:reduce){html[data-skin=arcade] *{animation:none !important}}
 </style>
 </head>
 <body>
+<canvas id="rain" aria-hidden="true"></canvas>
 <div class="layout">
 <aside>
-  <div class="brand">spec2pr</div>
+  <div class="brand"><svg class="fish" width="39" height="21" viewBox="0 0 13 7" shape-rendering="crispEdges" aria-hidden="true" id="fish"></svg><span>spec2pr</span><span class="cur">_</span></div>
+  <div class="skin" role="group" aria-label="Look"><button data-skin="arcade">Arcade</button><button data-skin="classic">Classic</button></div>
   <div class="side-h">Projects</div>
   <nav id="projects" aria-label="Projects"></nav>
   <div class="side-foot live"><span class="dot" id="dot"></span><span id="updated">waiting for server</span></div>
@@ -332,7 +451,9 @@ function activityOf(t){
 function loop(name, n){
   const max = LIMITS[name]; n = n || 0;
   const cls = n >= max ? "max" : n >= max - 1 && n > 0 ? "hot" : "";
-  return `<div><label>${name} loops</label><span class="loop ${cls}">${n}/${max}</span></div>`;
+  const pad = x => String(x).padStart(2, "0");
+  const lives = name === "build" ? `<span class="lives" title="${Math.max(max - n, 0)} fix rounds left">${Array.from({length: max}, (_, i) => `<i class="${i < n ? "spent" : ""}"></i>`).join("")}</span>` : "";
+  return `<div><label>${name} loops</label><span class="loop ${cls}"><span class="plain">${n}/${max}</span><span class="score">${pad(n)}/${pad(max)}</span></span>${lives}</div>`;
 }
 function verdicts(v){
   v = v || {};
@@ -536,7 +657,7 @@ function askCard(q){
   return `<section class="panel ask" data-id="${esc(q.id)}" data-repo="${esc(q.repo)}">
     <div class="ask-head"><span class="pill need">Needs you</span><b>${esc(q.title)}</b>
       <span class="tk">${esc(q.repoLabel)}${q.ticket ? " · " + esc(q.ticket) : ""} · asked ${esc(ago(q.asked))}</span></div>
-    ${ctx}${choices}<div class="msg">You can also answer in the Claude terminal${q.telegram ? " or in Telegram (sent to your phone)" : ""}.</div></section>`;
+    ${ctx}${(q.choices || []).length ? `<div class="hint">Pick a choice ▸</div>` : ""}${choices}<div class="msg">You can also answer in the Claude terminal${q.telegram ? " or in Telegram (sent to your phone)" : ""}.</div></section>`;
 }
 document.getElementById("needs").addEventListener("click", async ev => {
   const btn = ev.target.closest("button"); if (!btn) return;
@@ -743,6 +864,42 @@ document.getElementById("learnview").addEventListener("click", async ev => {
     body: JSON.stringify({repo: selected, id: b.dataset.lid, status: b.dataset.st})}).catch(() => null);
   document.getElementById("learnview")._html = null; tick();
 });
+
+// ---- Arcade look: pixel goldfish logo, digital rain, look switch (remembered in this browser).
+(() => {
+  const F = ["....ooo......", "..ooooooo..oo", ".owkoooooooo.", "oooooooooooo.", ".ooooooooooo.", "..ooooooo..oo", "....ooo......"];
+  const C = {o: "#ffa31a", k: "#000", w: "#fff"};
+  document.getElementById("fish").innerHTML = F.flatMap((r, y) => [...r].map((c, x) => C[c] ? `<rect x="${x}" y="${y}" width="1" height="1" fill="${C[c]}"/>` : "")).join("");
+  const cv = document.getElementById("rain"), cx = cv.getContext("2d"), FS = 16;
+  const CH = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホ0123456789{}<>=+*#SPEC2PR";
+  let drops = [], timer = null;
+  const size = () => { cv.width = innerWidth; cv.height = innerHeight; drops = Array.from({length: Math.ceil(cv.width / FS)}, () => Math.random() * cv.height / FS | 0); };
+  const draw = () => {
+    cx.fillStyle = "rgba(3,6,10,.2)"; cx.fillRect(0, 0, cv.width, cv.height);
+    cx.font = FS + "px VT323, monospace";
+    drops.forEach((y, i) => {
+      cx.fillStyle = Math.random() < .05 ? "#e6ffe9" : "#39ff14";
+      cx.fillText(CH[Math.random() * CH.length | 0], i * FS, y * FS);
+      drops[i] = y * FS > cv.height && Math.random() > .975 ? 0 : y + 1;
+    });
+  };
+  const run = () => {
+    clearInterval(timer); timer = null;
+    const on = document.documentElement.dataset.skin === "arcade" && !document.hidden && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (on) { size(); timer = setInterval(draw, 66); } else cx.clearRect(0, 0, cv.width, cv.height);
+  };
+  addEventListener("resize", () => { if (timer) size(); });
+  document.addEventListener("visibilitychange", run);
+  const sk = document.querySelector(".skin");
+  const mark = () => sk.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.skin === document.documentElement.dataset.skin)));
+  sk.addEventListener("click", ev => {
+    const b = ev.target.closest("button[data-skin]"); if (!b) return;
+    document.documentElement.dataset.skin = b.dataset.skin;
+    try { localStorage.setItem("spec2pr-skin", b.dataset.skin); } catch (e) {}
+    mark(); run();
+  });
+  mark(); run();
+})();
 
 async function tick(){
   const dot = document.getElementById("dot"), upd = document.getElementById("updated");
