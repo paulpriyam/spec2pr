@@ -97,6 +97,13 @@ untouched and you can run several features at once, one Claude Code session each
 Everything happens on a local page at `http://127.0.0.1:7788`. It opens by itself; `/feature-dashboard`
 brings it back.
 
+It comes in an 8-bit **Arcade** look, designed so the thing that needs you is the thing you notice:
+a pixel goldfish logo, a quiet digital rain behind solid panels, and green-on-black terminal text.
+Only the **Needs you** label blinks; its card glows slowly with a gold "Pick a choice" hint. The stage
+that's running is lit up, and loop counters read like a scoreboard (`01/03`), with "lives" showing how
+many fix rounds are left. Prefer something plainer? The **Arcade / Classic** switch in the top bar flips
+to the original look and remembers your choice. Animations stop if your system is set to reduce motion.
+
 **Pipeline:** where each feature is, what's being done right now, and every check's result.
 Every project you use spec2pr in is listed on the left.
 
