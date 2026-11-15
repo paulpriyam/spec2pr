@@ -11,6 +11,8 @@ Endpoints: /  (dashboard page; /?repo=<path> opens it on one project)
            /api/answer (POST {repo, id, answer, note}: answers a question posted by scripts/ask.py)
            /api/evidence?repo=<path>&key=<KEY>&file=<name>  (app-check screenshots/notes of a feature)
            /api/flow?repo=<path>&key=<KEY>  (live flow: elephant, subagents, their tool calls, your answers)
+           /api/learning?repo=<path>  (Learning tab: feature records, repeated problems, lessons)
+           /api/lesson (POST {repo, id, status}: turn a lesson on/off, keep or discard a proposed one)
            /api/info   (server root, pid and code version; used by ensure-dashboard.sh to restart a stale server)
 """
 import argparse
@@ -24,12 +26,15 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 MAX_EVENTS = 300
+sys.path.insert(0, str(HERE.parent / "scripts"))
+import learn  # noqa: E402  (scripts/learn.py: feature records and lessons)
 
 
 def code_version():
-    """Hash of server.py + index.html + scripts/telegram.py. ensure-dashboard.sh computes the same hash to spot a stale server."""
+    """Hash of server.py + index.html + scripts/telegram.py + scripts/learn.py. ensure-dashboard.sh computes the same hash to spot a stale server."""
     h = hashlib.sha256()
-    for f in (HERE / "server.py", HERE / "index.html", HERE.parent / "scripts" / "telegram.py"):
+    for f in (HERE / "server.py", HERE / "index.html", HERE.parent / "scripts" / "telegram.py",
+              HERE.parent / "scripts" / "learn.py"):
         h.update(f.read_bytes())
     return h.hexdigest()
 
@@ -210,6 +215,20 @@ def answer_question(fixed, body):
     with open(match[0] / ".agent-state" / "events.jsonl", "a") as f:
         f.write(json.dumps({"t": q["answered"], "ticket": q.get("ticket"), "ev": "answer", "agent": "you", "id": None}) + "\n")
     return 200, "ok"
+
+
+def set_lesson(fixed, body):
+    """Turn a lesson on/off (or keep/discard a proposed one) from the Learning tab."""
+    repo, lid, status = body.get("repo"), body.get("id"), body.get("status")
+    if not (isinstance(repo, str) and isinstance(lid, str) and isinstance(status, str)):
+        return 400, "repo, id and status are required"
+    if not all(c.isalnum() or c == "-" for c in lid):
+        return 400, "bad id"
+    match = [r for r in all_repos(fixed) if str(r) == repo]
+    if not match:
+        return 404, "unknown repo"
+    ok, msg = learn.set_status(lid, status, match[0])
+    return (200, "ok") if ok else (400, msg)
 
 
 MAX_TOOLS_PER_NODE = 60
@@ -543,6 +562,14 @@ def make_handler(repos, port):
                     self._send(404, b"not found", "text/plain")
                 else:
                     self._send(200, f.read_bytes(), EVIDENCE_TYPES[f.suffix.lower()])
+            elif path == "/api/learning":
+                from urllib.parse import parse_qs
+                repo = (parse_qs(self.path.partition("?")[2]).get("repo") or [""])[0]
+                match = [r for r in all_repos(repos) if str(r) == repo]
+                if not match:
+                    self._send(404, b"not found", "text/plain")
+                else:
+                    self._send(200, json.dumps(learn.learning_view(match[0])).encode(), "application/json")
             elif path == "/api/info":
                 body = json.dumps({"root": str(HERE.parent), "pid": os.getpid(), "version": VERSION}).encode()
                 self._send(200, body, "application/json")
@@ -554,7 +581,7 @@ def make_handler(repos, port):
 
         def do_POST(self):
             path = self.path.split("?")[0]
-            if path != "/api/answer":
+            if path not in ("/api/answer", "/api/lesson"):
                 return self._send(404, b"not found", "text/plain")
             # Only the dashboard page itself may answer: same-origin JSON requests from this server.
             if self.headers.get("Origin") not in origins or \
@@ -565,7 +592,8 @@ def make_handler(repos, port):
                 body = json.loads(self.rfile.read(min(n, 65536)) or b"{}")
             except Exception:
                 return self._send(400, b"bad json", "text/plain")
-            code, msg = answer_question(repos, body if isinstance(body, dict) else {})
+            body = body if isinstance(body, dict) else {}
+            code, msg = answer_question(repos, body) if path == "/api/answer" else set_lesson(repos, body)
             self._send(code, json.dumps({"ok": code == 200, "message": msg}).encode(), "application/json")
 
         def log_message(self, *args):

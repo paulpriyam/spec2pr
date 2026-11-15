@@ -122,6 +122,24 @@ pull request is opened.
 
 ![App check results: each acceptance criterion with a pass or fail and a screenshot](docs/images/app-check.png)
 
+## It learns from every feature
+
+When a feature finishes, spec2pr writes down what had to be sent back for fixes and why (for example
+"app check: the declined-payment screen was missing"). When the same kind of problem shows up in a
+second feature, it turns it into a short **lesson**, such as "build and test every error state the
+spec lists", and hands it to the right agents at the start of every later feature. Each lesson keeps
+a scorecard: if the problem keeps coming back anyway, spec2pr rewrites the lesson.
+
+- **Lessons about this repo** (from repeated problems, your corrections and PR review comments) live in
+  `.spec2pr/lessons.md` in the project. Commit it and your team shares them.
+- **Lessons for every project** live in `~/.spec2pr/lessons.md`. spec2pr asks you before adding one.
+- The dashboard's **Learning** tab shows the fixes-per-feature trend, the most common problems, and every
+  lesson with an on/off switch. Both files are plain Markdown you can edit.
+![The Learning tab: fixes per feature going down, the most common problems, and lessons with on/off switches](docs/images/learning.png)
+
+- Lessons are never given to the goldfish test, which must judge the spec on its own, and the spec
+  always wins over a lesson.
+
 ## Checking the real app
 
 After the tests pass, an agent opens your app and goes through each acceptance criterion the way a user
@@ -268,7 +286,7 @@ The commit gate catches skipped steps; it isn't a security boundary.
 | `agents/` | context-analyst, goldfish-spec-test, implementer, spec-guardian, tester, app-verifier, pr-reviewer, pr-shepherd, jira-sync |
 | `hooks/hooks.json` | Commit gate, activity log, dashboard auto-open |
 | `dashboard/` | The local dashboard (Python standard library only) |
-| `scripts/` | Worktrees, questions, app-check setup, status line |
+| `scripts/` | Worktrees, questions, Telegram, learning (`learn.py`), app-check setup, status line |
 | `docs/` | The website and the images in this README |
 </details>
 

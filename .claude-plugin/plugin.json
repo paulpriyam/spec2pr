@@ -1,6 +1,6 @@
 {
   "name": "spec2pr",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Ticket, issue or idea to a reviewed, tested PR: an elephant orchestrator plans with spec-kit, a zero-context goldfish tests the spec, then fresh-context subagents build, test, check the running app, review and raise the PR.",
   "author": {
     "name": "Priyam Paul"

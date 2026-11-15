@@ -213,6 +213,31 @@ header{align-items:center}
 .vhead{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:baseline;font-size:13px}
 .thumbs{display:flex;gap:8px;overflow-x:auto}
 .thumbs img{height:140px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.trend{display:flex;gap:6px;align-items:flex-end;overflow-x:auto;padding:4px 0 10px}
+.tb{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:44px;flex:0 0 auto}
+.tb i{display:block;width:22px;border-radius:4px 4px 0 0;background:var(--gold)}
+.tb i.zero{background:var(--ok)}
+.tb small{font:11px var(--mono);color:var(--muted);max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sigs,.lessons{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.sigs li{display:grid;grid-template-columns:34px 1fr;column-gap:8px;font-size:13px}
+.sigs li .tk{grid-column:2}
+.sigc{color:var(--gold);font-weight:600;min-width:28px}
+.lesson{border:1px solid var(--line);border-left:3px solid var(--ok);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:5px;font-size:13px}
+.lesson.proposed{border-left-color:var(--gold)} .lesson.off,.lesson.archived{border-left-color:var(--line);opacity:.75}
+.lesson.flagged{border-left-color:var(--warn)}
+.lhead{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap} .lhead .pill{margin-left:auto}
+.lrow span{font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-right:8px}
+.lmeta{color:var(--muted);font-size:12px}
+.lfoot{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.lwarn{color:var(--warn);font-size:12px}
+.lacts{display:flex;gap:6px}
+.lbtn{font:600 12px var(--sans);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer}
+.lbtn.rec{border-color:var(--ok);background:var(--okbg)} .lbtn:hover:not(:disabled){border-color:var(--ele)}
+.lfile{margin:-6px 0 10px;word-break:break-all}
+.tscroll{overflow-x:auto} .htable{border-collapse:collapse;width:100%;font-size:13px;margin-top:10px}
+.htable th{font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.htable td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:baseline}
+#learnview details.panel>summary{cursor:pointer;font:600 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -229,12 +254,14 @@ header{align-items:center}
     <div class="tabs" role="tablist" aria-label="View" id="tabs" hidden>
       <button role="tab" data-view="pipeline" aria-selected="true">Pipeline</button>
       <button role="tab" data-view="flow" aria-selected="false">Live flow</button>
+      <button role="tab" data-view="learning" aria-selected="false">Learning</button>
     </div>
   </header>
   <div class="path" id="path"></div>
   <div id="needs"></div>
   <div id="overview"></div>
   <div id="flowview" hidden></div>
+  <div id="learnview" hidden></div>
   <div id="pipeview">
   <div id="tickets"></div>
   <div class="row">
@@ -438,10 +465,20 @@ async function render(data){
   renderOverview(one ? [] : all);
   const tabs = document.getElementById("tabs");
   tabs.hidden = !one;
-  const showFlow = one && view === "flow";
-  tabs.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === (showFlow ? "flow" : "pipeline"))));
+  const cur = one ? view : "pipeline";
+  const showFlow = cur === "flow";
+  tabs.querySelectorAll("button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === cur)));
   document.getElementById("flowview").hidden = !showFlow;
-  document.getElementById("pipeview").hidden = showFlow;
+  document.getElementById("learnview").hidden = cur !== "learning";
+  document.getElementById("pipeview").hidden = cur !== "pipeline";
+  if (cur === "learning") {
+    const r = repos[0];
+    if (r) {
+      const lr = await fetch(`/api/learning?repo=${encodeURIComponent(r.path)}`, {cache: "no-store"}).then(x => x.ok ? x.json() : null).catch(() => null);
+      renderLearning(r, lr);
+    }
+    return;
+  }
   if (showFlow) {
     const r = repos[0];
     if (r) {
@@ -543,11 +580,11 @@ document.getElementById("overview").addEventListener("click", ev => {
 });
 
 // ---- Live flow view: elephant, subagents (side by side when parallel), their tool calls, your answers.
-let view = new URLSearchParams(location.search).get("view") === "flow" ? "flow" : "pipeline";
+let view = ["flow", "learning"].includes(new URLSearchParams(location.search).get("view")) ? new URLSearchParams(location.search).get("view") : "pipeline";
 let flowKey = null;
 function setView(v){
   view = v;
-  const u = new URL(location.href); if (v === "flow") u.searchParams.set("view", "flow"); else u.searchParams.delete("view");
+  const u = new URL(location.href); if (v !== "pipeline") u.searchParams.set("view", v); else u.searchParams.delete("view");
   history.replaceState(null, "", u);
   tick();
 }
@@ -651,6 +688,60 @@ document.getElementById("flowview").addEventListener("click", ev => {
     li.scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "center"});
     li.classList.add("flash"); setTimeout(() => li.classList.remove("flash"), 1400);
   }
+});
+
+// ---- Learning view: what went wrong in finished features, and the lessons spec2pr gives its agents.
+const OUT = {pr: ["PR opened", "ok"], done: ["Done", "ok"], blocked: ["Blocked", "bad"], stopped: ["Stopped", "mute"]};
+const ST = {on: ["On", "ok"], off: ["Off", "mute"], proposed: ["Asks you", "need"], archived: ["Archived", "mute"]};
+function lessonCard(l, repo){
+  const st = ST[l.status] || [l.status, ""];
+  const btn = (s, t, cls = "") => `<button class="lbtn ${cls}" data-lid="${esc(l.id)}" data-st="${s}">${t}</button>`;
+  const acts = l.status === "proposed" ? btn("on", "Keep", "rec") + btn("off", "Discard")
+    : l.status === "on" ? btn("off", "Turn off") : btn("on", l.status === "archived" ? "Restore" : "Turn on");
+  const score = l.used ? `Used in ${l.used} feature${l.used === 1 ? "" : "s"} · ${l.repeats ? `the problem came back ${l.repeats}×` : "the problem hasn't come back"}` : "Not used yet";
+  return `<li class="lesson ${l.status}${l.flagged ? " flagged" : ""}">
+    <div class="lhead"><span class="tk">${esc(l.id)}</span><b>${esc(l.title)}</b><span class="pill ${st[1]}">${st[0]}</span></div>
+    ${l.when ? `<div class="lrow"><span>When</span>${esc(l.when)}</div>` : ""}
+    ${l.do ? `<div class="lrow"><span>Do</span>${esc(l.do)}</div>` : ""}
+    <div class="lmeta">For ${esc((l.for || []).map(short).join(", ") || "nobody")}${l.evidence ? ` · learned from ${esc(l.evidence)}` : ""}</div>
+    <div class="lfoot"><span class="${l.flagged ? "lwarn" : "tk"}">${l.flagged ? "⚠ Not working: the problem keeps coming back. spec2pr will rewrite it." : esc(score)}</span><span class="lacts">${acts}</span></div></li>`;
+}
+function renderLearning(r, d){
+  const el = document.getElementById("learnview");
+  if (!d) { patch(el, `<section class="panel empty">Could not load the learning data.</section>`); return; }
+  const h = d.history || [];
+  const max = Math.max(1, ...h.map(x => x.sendbacks));
+  const bars = h.length ? `<div class="trend" data-k="trend" data-stickx>${h.map(x => `<div class="tb" title="${esc(`${x.title || x.key}: ${x.sendbacks} sent back for fixes${x.loops ? `, ${x.loops} loop warning(s)` : ""}${x.cost_usd != null ? `, est. ${money(x.cost_usd)}` : ""}`)}">
+      <i style="height:${Math.round(6 + 74 * x.sendbacks / max)}px" class="${x.sendbacks ? "" : "zero"}"></i><span class="mono">${x.sendbacks}</span><small>${esc(x.key)}</small></div>`).join("")}</div>` : "";
+  const half = Math.floor(h.length / 2);
+  const avg = a => a.length ? a.reduce((s, x) => s + x.sendbacks, 0) / a.length : 0;
+  const trendNote = h.length >= 4 ? (() => { const a = avg(h.slice(0, half)), b = avg(h.slice(half));
+    return b < a ? `Fewer fixes lately: ${b.toFixed(1)} per feature, down from ${a.toFixed(1)}.` : b > a ? `More fixes lately: ${b.toFixed(1)} per feature, up from ${a.toFixed(1)}.` : `Steady at ${b.toFixed(1)} fixes per feature.`; })() : "";
+  const rows = h.slice().reverse().map(x => { const o = OUT[x.outcome] || [x.outcome, ""];
+    return `<tr><td><b>${esc(x.title || x.key)}</b> <span class="tk">${esc(x.key)}</span></td><td><span class="pill ${o[1]}">${o[0]}</span></td>
+      <td class="mono">${x.sendbacks}</td><td class="mono">${x.loops || 0}</td><td class="mono">${x.corrections}</td><td class="mono">${(x.lessons_used || []).length}</td>
+      <td class="mono">${x.cost_usd != null ? money(x.cost_usd) : "–"}</td><td class="mono">${x.tokens ? fmtTok(x.tokens) : "–"}</td></tr>`; }).join("");
+  const sigs = (d.signatures || []).map(s => `<li><span class="mono sigc">${s.features.length}×</span><span>${esc(s.problem)}</span><span class="tk">${esc(s.features.join(", "))}</span></li>`).join("");
+  const L = d.lessons || {repo: [], general: []};
+  const order = {proposed: 0, on: 1, off: 2, archived: 3};
+  const group = (ls, title, file, empty) => `<section class="panel"><h2>${title}</h2><div class="tk lfile">${esc(file)}</div>
+    ${ls.length ? `<ul class="lessons">${ls.slice().sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9)).map(l => lessonCard(l, r)).join("")}</ul>` : `<div class="empty">${empty}</div>`}</section>`;
+  patch(el, `<div class="col">
+    <section class="panel"><h2>Sent back for fixes, per feature</h2>
+      ${h.length ? bars + `<div class="tk">${esc(trendNote || "Each bar is one finished feature, oldest on the left. Lower is better.")}</div>`
+        : `<div class="empty">Nothing recorded yet. When a feature finishes, spec2pr writes down what was sent back for fixes and why, and the trend shows up here.</div>`}</section>
+    ${sigs ? `<section class="panel"><h2>Most common problems</h2><ul class="sigs">${sigs}</ul></section>` : ""}
+    ${group(L.repo, "Lessons for this repo", d.files.repo, "None yet. They come from problems that repeat in this repo, from your corrections and from PR review comments.")}
+    ${group(L.general, "Lessons for every project", d.files.general, "None yet. When the same problem shows up in two features, spec2pr proposes a lesson and asks you first.")}
+    ${rows ? `<details class="panel" data-k="lhist"><summary>Finished features (${h.length})</summary><div class="tscroll"><table class="htable"><tr><th>Feature</th><th>Outcome</th><th>Fixes</th><th>Loops</th><th>Your corrections</th><th>Lessons used</th><th>Est. cost</th><th>Tokens</th></tr>${rows}</table></div></details>` : ""}
+  </div>`);
+}
+document.getElementById("learnview").addEventListener("click", async ev => {
+  const b = ev.target.closest(".lbtn"); if (!b) return;
+  b.disabled = true;
+  await fetch("/api/lesson", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({repo: selected, id: b.dataset.lid, status: b.dataset.st})}).catch(() => null);
+  document.getElementById("learnview")._html = null; tick();
 });
 
 async function tick(){

@@ -60,6 +60,46 @@ Big moments the user would want to hear about while away also go to Telegram (it
 connected): `python3 SCRIPTS/telegram.py notify "<repo> · KEY: <one line>"` when the PR is opened
 (with its link) and when the feature is blocked.
 
+## Learning from earlier features
+spec2pr keeps a record of every finished feature and turns problems that keep coming back into short
+**lessons** (see `SCRIPTS/learn.py --help`). `LEARN` = `python3 SCRIPTS/learn.py`. Always pass `--repo ROOT`.
+- **Lessons in.** After step 1 run `LEARN pick --repo ROOT --ticket KEY --text STATE/KEY-context.md`
+  and read the `## elephant` section of `STATE/KEY-lessons.md` yourself: apply it while writing the
+  spec (e.g. "list every error state"). After the user says Go (step 4), run it again with
+  `--text <spec_dir>` (and `--platforms` when you know them). From then on give every implementer,
+  spec-guardian, tester, app-verifier and pr-reviewer `LESSONS=STATE/KEY-lessons.md` in its prompt.
+  **Never give lessons to goldfish-spec-test**: it must judge the spec alone.
+- **Record every send-back.** Each time work goes back for fixes (goldfish FAIL, spec check gaps, test
+  failures, app check failures, blocking review findings, PR comments that needed code), log each
+  distinct problem once (at most 5 per round):
+  `LEARN sendback --repo ROOT --ticket KEY --stage goldfish|guardian|tester|verify|reviewer|pr-comments
+  --tag <tag> --ac AC-n --why "<one generic line: what was missed, not file names>"`. Tags:
+  `missed-ui-state` (error/empty/loading/declined states), `missed-ac`, `wrong-behaviour`,
+  `unclear-spec`, `weak-tests`, `broken-build`, `regression`, `repo-convention`, `env-setup`,
+  `security`, `other`. Pick the closest one: the same tag across features is what makes a lesson.
+- **Retro.** When the PR is opened (step 12) run `LEARN retro --repo ROOT --ticket KEY --outcome pr`;
+  when the user stops at a blocked feature, `--outcome blocked`; when they stop it any other way,
+  `--outcome stopped`; when it is done, `--outcome done` (running it again just updates the record).
+  It prints JSON. Act on it, then tell the user in one or two lines what was learned, if anything:
+  - `candidates`: the same problem happened in another feature too. Write one lesson for each with
+    `LEARN add --scope <its scope> --repo ROOT --title "<short rule>" --when "<the situation, in any
+    feature>" --do "<one concrete instruction>" --for <agents who can prevent it: implementer, tester,
+    spec-guardian, app-verifier, pr-reviewer, or elephant when the fix belongs in the spec>
+    --match "<words a spec would contain where it applies; empty = always>" --signature <signature>
+    --evidence "<features>"`. Use its `examples` to make it concrete, but no feature names in the rule.
+    General lessons are created as "proposed": **(ask)** title "spec2pr learned <n> lesson(s) from
+    problems that keep coming back. Use them from now on?", context = each lesson's title, when and do;
+    choices "Keep" (recommended) / "Discard" / "I'll pick on the dashboard". Keep → `LEARN set <id> on`
+    for each; Discard → `LEARN set <id> off`. Repo lessons are on straight away.
+  - `corrections`: your answers that changed course. If one states a lasting rule about this codebase
+    or how the user wants work done ("we always use <Money>", "never touch the legacy API"), add it as
+    a repo lesson. Decisions that only concern this feature stay in its spec, not in lessons.
+  - `flagged`: lessons that were given to agents but the problem came back anyway. Rewrite each with
+    `LEARN edit <id> --do "<sharper, more concrete instruction>"` (and `--for`/`--match` if it reached
+    the wrong agents), or `LEARN set <id> off` if it looks wrong.
+- **PR comments** (mode "address-comments"): a comment that states how this codebase does things
+  becomes a repo lesson as well (`--signature pr-comments/repo-convention`).
+
 ## Starting from where the work already is
 **Existing spec docs (`--spec <dir>`):** adopt them instead of writing a new spec.
 - Set `.spec_dir` = SPEC. Don't run `/speckit.specify` or overwrite files.
@@ -185,6 +225,7 @@ Maintain a task list of the phases below so the user can see progress.
    findings only, then re-run tester and pr-reviewer. Increment attempts.review.
    After any code change in 8–9, also re-run spec-guardian and (unless it was SKIP) app-verifier
    before moving on.
+   Every FAIL above that sends work back is also logged with `LEARN sendback` (see "Learning").
    **Loop limits:** build loops max 3, review loops max 2. On hitting a limit, stop, set
    phase="blocked", and give the user a short summary of what is still failing (and the Telegram
    notify line from "Asking the user").
@@ -204,8 +245,10 @@ Maintain a task list of the phases below so the user can see progress.
     `pr-shepherd` in mode "address-comments". Anything in its `needs_human` list goes to the user
     **(ask)**: one card without choices listing the comments that need a human call.
     Never merge the PR.
+    Then run the retro (`LEARN retro … --outcome pr`, see "Learning") and act on what it prints.
 
-When the PR is merged or the user ends the feature: set phase="done" and `.active=false`, and
+When the PR is merged or the user ends the feature: run `LEARN retro … --outcome done` (or `stopped` /
+`blocked`, see "Learning"), set phase="done" and `.active=false`, and
 `rm STATE/current` if it still says KEY (keep KEY.json and events.jsonl as the record), so this
 project no longer shows it as active. If there is a worktree, **(ask)** title "<title> is finished:
 remove its working copy?", choices "Remove it" (recommended) / "Keep it". On "Remove it", `cd ROOT`

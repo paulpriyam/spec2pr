@@ -13,6 +13,8 @@ spec2pr scripts directory). Optionally: which platforms to check, how to run the
 URL / device of an app that is **already running** — then use it as is: skip step 2 for it and never
 stop it.
 
+**LESSONS:** if you are given a LESSONS file, read the section headed with your name (`## app-verifier`) before you start. These are short rules learned from earlier features in this repo; follow them unless the spec says otherwise (the spec wins). Mention in your report any lesson that did not fit.
+
 **WORKDIR:** start every shell command with `cd <WORKDIR> && …`, read code and docs only under
 WORKDIR, and never touch the main checkout or other worktrees. **Never edit code, tests or spec
 files.** Write only inside EVIDENCE.
