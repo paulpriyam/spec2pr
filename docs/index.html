@@ -12,7 +12,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%233d5a80'/><path d='M18 22h28M18 32h20M18 42h12' stroke='white' stroke-width='5' stroke-linecap='round'/><circle cx='46' cy='42' r='6' fill='%23f2925c'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&family=Press+Start+2P&family=VT323&display=swap">
 <style>
 :root{
   --bg:#f6f7fa; --panel:#ffffff; --fg:#17202b; --muted:#5b6676; --line:#dbe0e8;
@@ -213,6 +213,63 @@ footer .wrap{display:flex;gap:16px;flex-wrap:wrap;justify-content:space-between}
 .run-foot{display:flex;gap:16px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--rline);background:var(--rpanel);color:var(--rmuted);font-size:11.5px}
 .run-foot b{color:var(--rfg);font-weight:600}
 .run-foot .live{margin-left:auto;color:var(--rok)}
+/* ===== Arcade look for the run preview (matches the dashboard) ===== */
+.run{--rbg:#03060a;--rpanel:#070d12;--rline:#1b4a30;--rfg:#d2ffdc;--rmuted:#8fd1a8;--rele:#2ee6ff;--rgold:#ffd23f;--rok:#39ff14;--rbad:#ff3d6e;
+  --vt:"VT323",ui-monospace,Menlo,monospace;--pix:"Press Start 2P",ui-monospace,monospace;
+  background:radial-gradient(ellipse 90% 70% at 50% -10%,#06281a 0%,var(--rbg) 65%);border:2px solid var(--rline);border-radius:0;
+  box-shadow:6px 6px 0 #000,0 30px 70px -28px rgba(0,40,10,.7);font:16px/1.25 var(--vt);text-shadow:0 0 4px rgba(57,255,20,.22)}
+.run *{border-radius:0 !important}
+.run::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:6;
+  background:repeating-linear-gradient(to bottom,rgba(0,0,0,.16) 0 1px,transparent 1px 4px),radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.45) 100%)}
+.run-top{background:var(--rpanel);border-bottom:2px solid var(--rline)}
+.run-top i{width:9px;height:9px;background:var(--rline)}
+.run-title{font:14px var(--vt);color:var(--rmuted)}
+.run-title b{font:400 10px var(--pix);color:var(--rok);text-shadow:0 0 8px rgba(57,255,20,.55);margin-right:4px}
+.run-status{font:400 8.5px var(--pix);letter-spacing:0;border-width:2px;padding:6px 8px;text-shadow:none}
+.run-status::before{width:6px;height:6px;animation:none}
+.run-status.need::before{animation:blink 1s steps(2,start) infinite}
+.st{border:2px solid var(--rline);font:400 7.5px var(--pix);letter-spacing:0}
+.st.on{border-color:var(--rele);color:var(--rele);background:#032431;box-shadow:0 0 10px rgba(46,230,255,.35)}
+.st.ok{border-color:#1f7a2a;color:var(--rok);background:#05220c}
+.st.back{border-color:var(--rbad);color:var(--rbad);background:#25060f}
+.st.you.on{border-color:var(--rgold);color:var(--rgold);background:#1f1803;box-shadow:0 0 10px rgba(255,210,63,.35)}
+.run-graph{border-bottom:2px solid var(--rline)}
+.gn rect{fill:var(--rpanel);stroke:var(--rline);stroke-width:2;rx:0}
+.gn text{font:15px var(--vt);fill:var(--rmuted)}
+.gn.on rect{stroke:var(--rele);fill:#032431;filter:drop-shadow(0 0 5px rgba(46,230,255,.6))}.gn.on text{fill:var(--rele)}
+.gn.you rect{stroke-dasharray:4 3}
+.gn.you.on rect{stroke:var(--rgold);fill:#1f1803;filter:drop-shadow(0 0 5px rgba(255,210,63,.6))}.gn.you.on text{fill:var(--rgold)}
+.gn.ok rect{stroke:#1f7a2a;fill:#05220c}.gn.ok text{fill:var(--rok)}
+.gn.back rect{stroke:var(--rbad);fill:#25060f}.gn.back text{fill:var(--rbad)}
+.ge{stroke:var(--rline);stroke-width:2}
+.ge.flow{stroke:var(--rele)} .ge.ok{stroke:#1f7a2a}
+.gx{stroke-width:2} .gxl{font:14px var(--vt)}
+.log li{gap:10px}
+.log .agent{color:var(--rmuted)} .log .tool{font-weight:400;text-transform:uppercase;letter-spacing:.04em}
+.log .res{font:400 7.5px var(--pix)}
+.k-edit{color:var(--rgold)} .k-read{color:var(--rele)} .k-run{color:var(--rfg)} .k-ag{color:var(--rok)}
+.log li.note{font-style:normal;color:var(--rgold)} .log li.note b{color:var(--rgold)}
+.lanes{background:var(--rbg)}
+.lane{background:var(--rpanel);border:2px solid var(--rline);font-size:15px}
+.lane b{font-weight:400;color:var(--rfg)}
+.bar{height:8px;background:#0b1a10}
+.bar i{background:repeating-linear-gradient(90deg,var(--rgold) 0 6px,transparent 6px 8px)}
+.lane.done .bar i{background:repeating-linear-gradient(90deg,var(--rok) 0 6px,transparent 6px 8px)}
+.ask{background:var(--rpanel);border:0;padding:16px 18px;font-family:var(--vt);
+  box-shadow:0 -3px 0 var(--rgold),0 3px 0 var(--rgold),-3px 0 0 var(--rgold),3px 0 0 var(--rgold),0 0 24px rgba(255,210,63,.35),0 18px 40px rgba(0,0,0,.6)}
+.ask .pill{font:400 8.5px var(--pix);letter-spacing:0;border-width:2px;padding:6px 8px;animation:blink 1s steps(2,start) infinite}
+.ask .pill::before{content:"▶ "}
+.ask h4{font:400 11px/1.6 var(--pix);color:var(--rgold);text-shadow:0 0 8px rgba(255,210,63,.45);margin:12px 0 6px}
+.ask p{font-size:16px;color:var(--rmuted)}
+.ask p::after{content:"PICK A CHOICE ▸";display:block;margin-top:10px;color:var(--rgold);letter-spacing:.12em;font-size:14px}
+.ask .btns span{font:17px var(--vt);border:2px solid var(--rline);padding:7px 14px;color:var(--rfg);box-shadow:3px 3px 0 #000}
+.ask .btns .go{border-color:var(--rok);color:#000;background:var(--rok);text-shadow:none}
+.ask .btns .go.press{transform:translate(3px,3px);box-shadow:none;background:var(--rok)}
+.done-banner{font:400 9px/1.6 var(--pix);background:#05220c;border:2px solid var(--rok);box-shadow:0 0 0 10px var(--rbg),0 0 16px rgba(57,255,20,.35)}
+.done-banner span{font:15px var(--vt)}
+.run-foot{border-top:2px solid var(--rline);font-size:15px}
+.run-foot b{font-weight:400;color:var(--rok)}
+@media (prefers-reduced-motion:reduce){.run .ask .pill,.run .run-status::before{animation:none !important}}
 .caption{margin-top:12px;font-size:13px;color:var(--muted);text-align:center}
 .theme:focus-visible{outline:2px solid var(--ele)}
 </style>
