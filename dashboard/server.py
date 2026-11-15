@@ -27,10 +27,10 @@ MAX_EVENTS = 300
 
 
 def code_version():
-    """Hash of server.py + index.html. ensure-dashboard.sh computes the same hash to spot a stale server."""
+    """Hash of server.py + index.html + scripts/telegram.py. ensure-dashboard.sh computes the same hash to spot a stale server."""
     h = hashlib.sha256()
-    for name in ("server.py", "index.html"):
-        h.update((HERE / name).read_bytes())
+    for f in (HERE / "server.py", HERE / "index.html", HERE.parent / "scripts" / "telegram.py"):
+        h.update(f.read_bytes())
     return h.hexdigest()
 
 
@@ -588,6 +588,14 @@ def main():
         sys.exit(1)
     print(f"spec2pr dashboard: http://127.0.0.1:{args.port}  watching: "
           + (", ".join(str(r) for r in repos) or "(none fixed)") + f" + repos in {REGISTRY}", flush=True)
+    # Answers from Telegram (if connected): one background thread fetches replies for every project.
+    sys.path.insert(0, str(HERE.parent / "scripts"))
+    try:
+        import telegram
+        import threading
+        threading.Thread(target=telegram.poll_forever, daemon=True).start()
+    except Exception as e:
+        print(f"spec2pr dashboard: Telegram replies disabled ({e})", file=sys.stderr)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

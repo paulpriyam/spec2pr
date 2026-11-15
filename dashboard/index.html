@@ -499,7 +499,7 @@ function askCard(q){
   return `<section class="panel ask" data-id="${esc(q.id)}" data-repo="${esc(q.repo)}">
     <div class="ask-head"><span class="pill need">Needs you</span><b>${esc(q.title)}</b>
       <span class="tk">${esc(q.repoLabel)}${q.ticket ? " · " + esc(q.ticket) : ""} · asked ${esc(ago(q.asked))}</span></div>
-    ${ctx}${choices}<div class="msg">You can also answer in the Claude terminal.</div></section>`;
+    ${ctx}${choices}<div class="msg">You can also answer in the Claude terminal${q.telegram ? " or in Telegram (sent to your phone)" : ""}.</div></section>`;
 }
 document.getElementById("needs").addEventListener("click", async ev => {
   const btn = ev.target.closest("button"); if (!btn) return;

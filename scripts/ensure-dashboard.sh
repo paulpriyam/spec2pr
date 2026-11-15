@@ -27,7 +27,7 @@ start() {
 
 if up; then
   # Restart a server that runs older code or another copy of the plugin, so the page always matches.
-  want="$(cat "$root/dashboard/server.py" "$root/dashboard/index.html" | shasum -a 256 | cut -d' ' -f1)"
+  want="$(cat "$root/dashboard/server.py" "$root/dashboard/index.html" "$root/scripts/telegram.py" | shasum -a 256 | cut -d' ' -f1)"
   info="$(curl -s --max-time 1 "$url/api/info")"
   have="$(jq -r '.version // empty' <<<"$info" 2>/dev/null)"
   if [ "$have" != "$want" ]; then

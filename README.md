@@ -113,6 +113,11 @@ there or in the terminal, whichever is closer.
 
 ![A Needs you card asking to approve the spec, with Go, Change the spec and Stop buttons](docs/images/needs-you.png)
 
+**Away from your desk?** Connect Telegram once with `/telegram-setup` and the same questions arrive
+on your phone with a button per choice. Tap one, or reply with a note ("Change the spec: Visa only"),
+and the feature carries on. You also get a message when an agent looks stuck in a loop and when the
+pull request is opened.
+
 **Checked in the real app:** for every acceptance criterion, a pass or fail with a screenshot as proof.
 
 ![App check results: each acceptance criterion with a pass or fail and a screenshot](docs/images/app-check.png)
@@ -140,6 +145,7 @@ may install it. Android needs Android Studio with an emulator, and iOS needs Xco
 | `/verify-feature` | Check work in progress in the running app, then decide what's next |
 | `/feature-dashboard` | Open the dashboard |
 | `/feature-status` | A quick text summary of where a feature is |
+| `/telegram-setup` | Answer questions from your phone: connect your own Telegram bot (one minute) |
 | `/goldfish-check <file>` | Test any spec or design doc: could someone build from it alone? |
 
 ## Good to know
@@ -150,6 +156,10 @@ may install it. Android needs Android Studio with an emulator, and iOS needs Xco
 - **Jira and GitHub are optional.** With a Jira ticket or a GitHub issue, spec2pr posts short progress
   updates. With a plain idea, no ticket system is involved. For Jira, Confluence or Figma, connect those
   connectors in Claude Code.
+- **Telegram is optional and private to you.** You make your own bot with @BotFather, so messages go
+  only between it and you; replies from anyone else are ignored. The token is stored in
+  `~/.spec2pr/telegram.json`, readable only by you. Claude Code has to stay open on your laptop (and the
+  laptop awake) for the feature to keep going. `FF_TELEGRAM=off` pauses it.
 - **It never merges.** Merging the pull request is always your call.
 - **It warns you about loops.** If an agent runs the same failing command three times, or a builder makes 25
   tool calls without changing a file, the feature is marked **Looping?** on the dashboard and you get a
@@ -223,6 +233,7 @@ downloads Eclipse Temurin 17 into `~/.spec2pr/jdk`. No Homebrew or admin rights 
 | `FF_DASHBOARD=off` | Never open the dashboard |
 | `FF_DASHBOARD_PORT=7788` | Dashboard port |
 | `FF_NOTIFY=off` | No desktop notifications |
+| `FF_TELEGRAM=off` | Don't send questions to Telegram (stays connected) |
 | `FF_WORKTREE_SETUP="<command>"` or `none` | How a new worktree is set up |
 
 Clickable notifications on macOS: `brew install terminal-notifier`.

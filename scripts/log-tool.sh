@@ -36,7 +36,7 @@ jq -c --arg ev "$ev" --arg key "$key" --arg cwd "$cwd/" '
 ' <<<"$input" >> "$root/.agent-state/tools.jsonl" 2>/dev/null
 
 # Loop alert: the same agent ran the same failing command for the 3rd time -> one desktop notification.
-if [ "$ev" = "post" ] && [ "${FF_NOTIFY:-on}" != "off" ] && [ "$(uname)" = "Darwin" ]; then
+if [ "$ev" = "post" ] && [ "${FF_NOTIFY:-on}" != "off" ]; then
   last=$(tail -n 1 "$root/.agent-state/tools.jsonl")
   if [ "$(jq -r '.ok' <<<"$last")" = "false" ]; then
     n=$(tail -n 600 "$root/.agent-state/tools.jsonl" | jq -s --argjson l "$last" \
@@ -44,9 +44,10 @@ if [ "$ev" = "post" ] && [ "${FF_NOTIFY:-on}" != "off" ] && [ "$(uname)" = "Darw
     if [ "$n" = "3" ]; then
       who=$(jq -r '(.agent_type // "elephant") | sub("^(spec2pr|feature-factory):"; "")' <<<"$last")
       what=$(jq -r '"\(.tool): \(.summary)" | .[0:90]' <<<"$last")
-      osascript -e 'on run argv
+      [ "$(uname)" = "Darwin" ] && osascript -e 'on run argv
 display notification (item 2 of argv) with title "spec2pr · possible loop" subtitle (item 1 of argv) sound name "Basso"
 end run' "$who has hit the same failure 3 times" "$what" >/dev/null 2>&1
+      python3 "$(dirname "$0")/telegram.py" notify "⚠️ $(basename "$root") · $key: possible loop. $who has hit the same failure 3 times: $what" >/dev/null 2>&1 &
     fi
   fi
 fi

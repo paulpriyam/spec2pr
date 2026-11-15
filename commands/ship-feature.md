@@ -53,6 +53,12 @@ or the terminal as usual. `ASK` = `python3 <plugin>/scripts/ask.py` (same `scrip
      (ignore the background wait's later notification), then continue.
 5. Write every answer that decides something into spec.md Decisions.
 Ask one card at a time and wait for it; put related questions in one card.
+If the user connected Telegram (`/telegram-setup`), `ASK post` also sends the card to their phone and
+the answer can come from there (`"by": "telegram"`); nothing changes for you. Because they may be
+answering from a phone, keep `--context` short and self-contained (no "see above").
+Big moments the user would want to hear about while away also go to Telegram (it does nothing if not
+connected): `python3 SCRIPTS/telegram.py notify "<repo> · KEY: <one line>"` when the PR is opened
+(with its link) and when the feature is blocked.
 
 ## Starting from where the work already is
 **Existing spec docs (`--spec <dir>`):** adopt them instead of writing a new spec.
@@ -180,7 +186,8 @@ Maintain a task list of the phases below so the user can see progress.
    After any code change in 8–9, also re-run spec-guardian and (unless it was SKIP) app-verifier
    before moving on.
    **Loop limits:** build loops max 3, review loops max 2. On hitting a limit, stop, set
-   phase="blocked", and give the user a short summary of what is still failing.
+   phase="blocked", and give the user a short summary of what is still failing (and the Telegram
+   notify line from "Asking the user").
    **(ask)** title "<title> is stuck at <blocked_at> after <n> rounds", context = what is
    still failing; choices "One more round", "Change the spec", "Stop here". "One more round" allows
    exactly one extra loop past the limit; a second hit asks again.
@@ -190,6 +197,7 @@ Maintain a task list of the phases below so the user can see progress.
     (SOURCE, KEY, spec_dir, BASE, WORKDIR, and `STATE/KEY-verify/report.json` if it exists). The commit
     gate hook blocks commit/push/PR unless guardian, tester and reviewer are PASS and the app check is
     PASS or SKIP in the state file.
+    Send the PR link with the Telegram notify line from "Asking the user".
 11. Ticket update with the PR link (jira: `jira-sync` status "In Review"; github: PR body has
     "Closes #n"; local: skip). Set phase="in-review".
 12. Tell the user: PR link, and that `/ship-feature KEY` or "address PR comments" will run

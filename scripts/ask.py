@@ -10,6 +10,8 @@
 dashboard shows a text box. --repo may be the main checkout or a feature worktree. Questions live in
 the main checkout's .agent-state/questions/<id>.json; the dashboard
 writes the answer into the same file. Set FF_NOTIFY=off to skip the desktop notification.
+If Telegram is connected (scripts/telegram.py setup), the question is also sent there and can be
+answered from the phone; `wait` fetches those replies itself when the dashboard isn't running.
 """
 import argparse
 import json
@@ -24,6 +26,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import telegram  # noqa: E402  (optional: does nothing until `telegram.py setup` has been run)
 
 
 def now():
@@ -95,15 +99,17 @@ def cmd_post(a):
     d = qdir(a.repo); d.mkdir(parents=True, exist_ok=True)
     qid = datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
     ticket = a.ticket or current_ticket(a.repo)
-    write_atomic(d / f"{qid}.json", {
-        "id": qid, "ticket": ticket, "title": a.title, "context": a.context or "",
-        "choices": choices, "status": "open", "asked": now(),
-    })
+    q = {"id": qid, "ticket": ticket, "title": a.title, "context": a.context or "",
+         "choices": choices, "status": "open", "asked": now()}
+    write_atomic(d / f"{qid}.json", q)
     log_event(a.repo, "ask", ticket)
     # Make sure the dashboard is up so the card can be answered there (no new browser tab).
     subprocess.run([str(HERE / "ensure-dashboard.sh"), str(root_of(a.repo)), "--no-open"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     notify(a.repo, a.title)
+    if telegram.send_question(root_of(a.repo), q):
+        q["telegram"] = True
+        write_atomic(d / f"{qid}.json", q)
     print(qid)
 
 
@@ -117,7 +123,9 @@ def load(a):
 def cmd_wait(a):
     p, q = load(a)
     while q.get("status") == "open":
-        time.sleep(1)
+        # Fetch Telegram replies unless the dashboard server (or another wait) is already doing it.
+        if not (telegram.config() and telegram.poll_once(3)):
+            time.sleep(1)
         try:
             q = json.loads(p.read_text())
         except (json.JSONDecodeError, FileNotFoundError):
