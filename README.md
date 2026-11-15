@@ -9,7 +9,7 @@ code, and opens the pull request. It stops and asks you whenever a decision is y
 
 **[Website](https://paulpriyam.github.io/spec2pr/)** · [Install](#install) · [How it works](#how-it-works) · [The dashboard](#the-dashboard)
 
-![spec2pr dashboard: the flow map of agents growing while a feature is built](docs/images/spec2pr-demo.gif)
+![spec2pr dashboard: the flow map of agents growing while a feature is built](docs/images/spec2pr-demo.gif?v=0.10.0)
 
 ## Why
 
@@ -107,18 +107,18 @@ to the original look and remembers your choice. Animations stop if your system i
 **Pipeline:** where each feature is, what's being done right now, and every check's result.
 Every project you use spec2pr in is listed on the left.
 
-![The pipeline view: stages from context to PR, verdicts, and the app check with screenshots](docs/images/pipeline.png)
+![The pipeline view: stages from context to PR, verdicts, and the app check with screenshots](docs/images/pipeline.png?v=0.10.0)
 
 **Live flow:** what the agents are doing, as it happens. A flow map at the top shows every step as a
 graph: agents working in parallel stacked side by side, the one running now pulsing, and red dashed lines
 where work was sent back for fixes. Click any step to see its tool calls in the list below.
 
-![The live flow view: a flow map of the run, with a step sent back for fixes and the app check running](docs/images/live-flow.png)
+![The live flow view: a flow map of the run, with a step sent back for fixes and the app check running](docs/images/live-flow.png?v=0.10.0)
 
 **Needs you:** when a decision is yours, you get a desktop notification and a card with buttons. Answer
 there or in the terminal, whichever is closer.
 
-![A Needs you card asking to approve the spec, with Go, Change the spec and Stop buttons](docs/images/needs-you.png)
+![A Needs you card asking to approve the spec, with Go, Change the spec and Stop buttons](docs/images/needs-you.png?v=0.10.0)
 
 **Away from your desk?** Connect Telegram once with `/telegram-setup` and the same questions arrive
 on your phone with a button per choice. Tap one, or reply with a note ("Change the spec: Visa only"),
@@ -127,7 +127,7 @@ pull request is opened.
 
 **Checked in the real app:** for every acceptance criterion, a pass or fail with a screenshot as proof.
 
-![App check results: each acceptance criterion with a pass or fail and a screenshot](docs/images/app-check.png)
+![App check results: each acceptance criterion with a pass or fail and a screenshot](docs/images/app-check.png?v=0.10.0)
 
 ## It learns from every feature
 
@@ -142,7 +142,7 @@ a scorecard: if the problem keeps coming back anyway, spec2pr rewrites the lesso
 - **Lessons for every project** live in `~/.spec2pr/lessons.md`. spec2pr asks you before adding one.
 - The dashboard's **Learning** tab shows the fixes-per-feature trend, the most common problems, and every
   lesson with an on/off switch. Both files are plain Markdown you can edit.
-![The Learning tab: fixes per feature going down, the most common problems, and lessons with on/off switches](docs/images/learning.png)
+![The Learning tab: fixes per feature going down, the most common problems, and lessons with on/off switches](docs/images/learning.png?v=0.10.0)
 
 - Lessons are never given to the goldfish test, which must judge the spec on its own, and the spec
   always wins over a lesson.
