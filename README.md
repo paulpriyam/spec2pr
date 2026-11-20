@@ -95,7 +95,8 @@ untouched and you can run several features at once, one Claude Code session each
 ## The dashboard
 
 Everything happens on a local page at `http://127.0.0.1:7788`. It opens by itself; `/feature-dashboard`
-brings it back.
+brings it back. After you update the plugin, the open dashboard switches to the new version by itself
+within a few seconds; Claude Code sessions started before the update can't swap it back to an older one.
 
 It comes in an 8-bit **Arcade** look, designed so the thing that needs you is the thing you notice:
 a pixel goldfish logo, a quiet digital rain behind solid panels, and green-on-black terminal text.

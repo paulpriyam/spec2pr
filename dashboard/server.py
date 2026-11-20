@@ -39,6 +39,48 @@ def code_version():
     return h.hexdigest()
 
 
+def plugin_version(root):
+    """The spec2pr version in <root>/.claude-plugin/plugin.json as a tuple, e.g. (0, 10, 1); () if unknown."""
+    try:
+        return tuple(int(x) for x in json.loads((Path(root) / ".claude-plugin" / "plugin.json").read_text())["version"].split("."))
+    except Exception:
+        return ()
+
+
+def newer_install():
+    """The folder of an installed spec2pr newer than the code this server runs, or None."""
+    mine = plugin_version(HERE.parent)
+    if not mine:
+        return None
+    try:
+        data = json.loads((Path.home() / ".claude" / "plugins" / "installed_plugins.json").read_text())
+    except Exception:
+        return None
+    best = None
+    for name, entries in (data.get("plugins", data) or {}).items():
+        if not str(name).startswith("spec2pr@"):
+            continue
+        for e in entries if isinstance(entries, list) else [entries]:
+            root = Path(str((e or {}).get("installPath", "")))
+            v = plugin_version(root)
+            if v > mine and (root / "dashboard" / "server.py").is_file() and (best is None or v > best[0]):
+                best = (v, root)
+    return best[1] if best else None
+
+
+def follow_updates(server, every=10):
+    """After a plugin update, restart this server from the newer code, so open pages get the new dashboard
+    without waiting for a spec2pr command to run."""
+    import time
+    while True:
+        time.sleep(every)
+        root = newer_install()
+        if root:
+            print(f"spec2pr dashboard: switching to the newer version in {root}", flush=True)
+            server.server_close()
+            os.execv(sys.executable, [sys.executable, str(root / "dashboard" / "server.py"), *sys.argv[1:]])
+
+
 VERSION = code_version()
 
 
@@ -571,7 +613,8 @@ def make_handler(repos, port):
                 else:
                     self._send(200, json.dumps(learn.learning_view(match[0])).encode(), "application/json")
             elif path == "/api/info":
-                body = json.dumps({"root": str(HERE.parent), "pid": os.getpid(), "version": VERSION}).encode()
+                body = json.dumps({"root": str(HERE.parent), "pid": os.getpid(), "version": VERSION,
+                                   "plugin": ".".join(map(str, plugin_version(HERE.parent)))}).encode()
                 self._send(200, body, "application/json")
             elif path == "/api/state":
                 body = json.dumps(snapshot(repos)).encode()
@@ -624,6 +667,8 @@ def main():
         threading.Thread(target=telegram.poll_forever, daemon=True).start()
     except Exception as e:
         print(f"spec2pr dashboard: Telegram replies disabled ({e})", file=sys.stderr)
+    import threading
+    threading.Thread(target=follow_updates, args=(server,), daemon=True).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -30,7 +30,21 @@ if up; then
   want="$(cat "$root/dashboard/server.py" "$root/dashboard/index.html" "$root/scripts/telegram.py" "$root/scripts/learn.py" | shasum -a 256 | cut -d' ' -f1)"
   info="$(curl -s --max-time 1 "$url/api/info")"
   have="$(jq -r '.version // empty' <<<"$info" 2>/dev/null)"
-  if [ "$have" != "$want" ]; then
+  # Never let an older copy (say, a Claude Code session started before the plugin was updated) replace
+  # a newer dashboard: that made the page flip between old and new looks and lose the Learning tab.
+  running_is_newer() {
+    python3 - "$root" "$(jq -r '.root // empty' <<<"$info" 2>/dev/null)" <<'PY'
+import json, sys
+from pathlib import Path
+def v(r):
+    try:
+        return tuple(int(x) for x in json.loads((Path(r) / ".claude-plugin" / "plugin.json").read_text())["version"].split("."))
+    except Exception:
+        return ()
+sys.exit(0 if sys.argv[2] and v(sys.argv[2]) > v(sys.argv[1]) else 1)
+PY
+  }
+  if [ "$have" != "$want" ] && ! running_is_newer; then
     pid="$(jq -r '.pid // empty' <<<"$info" 2>/dev/null)"
     # Servers from before /api/info existed: find the python process listening on the port.
     [ -z "$pid" ] && pid="$(lsof -ti "tcp:$port" -sTCP:LISTEN 2>/dev/null | head -1)"
