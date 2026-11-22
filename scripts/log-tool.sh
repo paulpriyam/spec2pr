@@ -9,6 +9,7 @@ input=$(cat)
 cwd=$(jq -r '.cwd // "."' <<<"$input")
 sid=$(jq -r '.session_id // ""' <<<"$input")
 root=$(ff_root "$cwd")
+root=$(ff_program_root "$root" "$sid")
 key=$(ff_key "$root" "$cwd" "$sid")
 [ -n "$key" ] || exit 0
 jq -c --arg ev "$ev" --arg key "$key" --arg cwd "$cwd/" '

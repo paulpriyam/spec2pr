@@ -20,7 +20,9 @@ if [ "$cmd" = "ship-program" ]; then
   [ -n "$key" ] || exit 0
   root="${SPEC2PR_HOME:-$HOME/.spec2pr}/programs/$key"
   mkdir -p "$root/.agent-state"
+  [ -n "$sid" ] && mkdir -p "${SPEC2PR_HOME:-$HOME/.spec2pr}/sessions" && echo "$root" > "${SPEC2PR_HOME:-$HOME/.spec2pr}/sessions/$sid"
 else
+  [ -n "$sid" ] && rm -f "${SPEC2PR_HOME:-$HOME/.spec2pr}/sessions/$sid"
   root=$(ff_root "$cwd")
 fi
 if [ -n "$key" ] && [ -n "$sid" ]; then

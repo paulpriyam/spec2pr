@@ -46,3 +46,11 @@ ff_key_from_arg() {
   else tr '[:upper:]' '[:lower:]' <<<"$a" | sed -E 's/[^a-z0-9]+/-/g; s/^-+//; s/-+$//'
   fi
 }
+
+# ff_program_root ROOT SESSION_ID -> the program dir if this session runs /ship-program, else ROOT.
+# A /ship-program session works from wherever it was started (its cwd is not the program dir), so
+# on-prompt.sh maps the session to its program in ~/.spec2pr/sessions/<sid>.
+ff_program_root() {
+  local f="${SPEC2PR_HOME:-$HOME/.spec2pr}/sessions/$2"
+  if [ -n "$2" ] && [ -f "$f" ] && [ -d "$(head -1 "$f")" ]; then head -1 "$f"; else echo "$1"; fi
+}

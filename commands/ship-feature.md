@@ -141,7 +141,8 @@ A parent session (`/ship-program`) already wrote and got approval for the whole 
 THIS repo's slice only. `PROG` = `python3 SCRIPTS/program.py`.
 - **Find your slice.** Read `PROGRAM/program.json`; your entry in `repos` is the one whose `path` equals
   ROOT. NAME = its `name`. BASE = its `base` if set (else as usual). If no entry matches, stop and tell
-  the user this repo is not part of the program.
+  the user this repo is not part of the program. Set `.title` = "<program.json title> · NAME" and
+  `.source` from program.json.
 - **Working copy** as usual (a worktree unless HERE). Then
   `PROG sync-spec PROGRAM --repo NAME --dest <WT or ROOT>/specs/KEY` and set `.spec_dir` to that dir and
   `.program = {"dir": PROGRAM, "name": NAME, "contract_version": <from its output>}` in state. The copy

@@ -6,6 +6,7 @@ input=$(cat)
 dir=$(jq -r '.workspace.current_dir // .cwd // "."' <<<"$input")
 sid=$(jq -r '.session_id // ""' <<<"$input")
 root=$(ff_root "$dir")
+root=$(ff_program_root "$root" "$sid")
 key=$(ff_key "$root" "$dir" "$sid")
 [ -n "$key" ] || exit 0
 f="$root/.agent-state/$key.json"

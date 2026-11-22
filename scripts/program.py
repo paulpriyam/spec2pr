@@ -9,7 +9,7 @@ available. Files are the source of truth; cmux messages are only wake-up nudges.
   program.py add-repo PROGRAM --name N --path DIR [--base BRANCH]
   program.py launch PROGRAM [--print] [--only NAME]                 -> one workspace (or command) per repo
   program.py status PROGRAM [--json]                                -> each child's phase, verdicts, PR
-  program.py wait PROGRAM [--timeout SECONDS]                       -> blocks until something needs the parent
+  program.py wait PROGRAM [--timeout SECONDS]                       -> blocks until something new needs the parent
   program.py sync-spec PROGRAM --repo NAME --dest DIR               -> copies the slice + contract into DIR
   program.py request PROGRAM --repo NAME --text T                   -> child asks for a contract change
   program.py reply PROGRAM ID --text T                              -> parent answers a request
@@ -151,9 +151,19 @@ def cmd_add_repo(a):
     print(f"{a.name}: {path}")
 
 
+PLUGIN_ROOT = Path(__file__).resolve().parent.parent
+
+
 def child_command(prog, p, r):
     claude = os.environ.get("SPEC2PR_CLAUDE", "claude")
-    prompt = f"/spec2pr:ship-feature {prog['key']} --program {p}"
+    # A copy of spec2pr that is not the installed one (e.g. a checkout being tried out): load the same
+    # copy in the children, or they would run the installed version, which may not know --program.
+    installed = Path.home() / ".claude" / "plugins"
+    if installed not in PLUGIN_ROOT.parents:
+        claude += f" --plugin-dir {shlex.quote(str(PLUGIN_ROOT))}"
+    m = re.fullmatch(r"gh-(\d+)", prog["key"])
+    ticket = f"#{m.group(1)}" if m else prog["key"]
+    prompt = f"/spec2pr:ship-feature {ticket} --program {p}"
     if prog.get("source") == "local":
         prompt += " --no-jira"
     if r.get("base"):
@@ -236,16 +246,19 @@ def cmd_wait(a):
     """Return as soon as the parent has something to do: a contract request, a blocked child, a child that
     opened its PR, or every child at in-review/done. Run it in the background and act on what it prints."""
     p = pdir(a.program)
-    seen = None
+    # What earlier waits already reported, so nothing is missed between two waits and nothing is
+    # reported twice (an open request waiting on the user would otherwise wake the parent forever).
+    seen_file = p / ".agent-state" / "wait-seen.json"
+    mem = read_json(seen_file) or {}
+    seen, seen_reqs = mem.get("phases") or {}, set(mem.get("requests") or [])
     deadline = time.time() + a.timeout if a.timeout else None
     while True:
         prog = load(p)
         s = status_of(p, prog)
         phases = {c["repo"]: c["phase"] for c in s["children"]}
-        if seen is None:
-            seen = phases
         reasons = []
-        if s["open_requests"]:
+        new_reqs = [q["id"] for q in s["open_requests"] if q["id"] not in seen_reqs]
+        if new_reqs:
             reasons.append("contract-request")
         if any(ph == "blocked" and seen.get(n) != "blocked" for n, ph in phases.items()):
             reasons.append("child-blocked")
@@ -255,9 +268,9 @@ def cmd_wait(a):
         if s["children"] and all(ph in DONE_PHASES for ph in phases.values()):
             reasons.append("all-children-in-review")
         if reasons:
-            print(json.dumps({"reasons": reasons, **s}, indent=2))
+            write_atomic(seen_file, {"phases": phases, "requests": sorted(seen_reqs | set(new_reqs))})
+            print(json.dumps({"reasons": reasons, "new_requests": new_reqs, **s}, indent=2))
             return
-        seen = phases
         if deadline and time.time() > deadline:
             print(json.dumps({"reasons": ["timeout"], **s}, indent=2))
             return
