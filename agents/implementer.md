@@ -10,6 +10,8 @@ optionally a WORKDIR.
 
 **LESSONS:** if you are given a LESSONS file, read the section headed with your name (`## implementer`) before you start. These are short rules learned from earlier features in this repo; follow them unless the spec says otherwise (the spec wins). Mention in your report any lesson that did not fit.
 
+**CONTRACT:** if you are given a CONTRACT file (a multi-repo feature), read it first; build exactly to it: names, payload fields and types, error cases. It is shared with other repos that are being built against the same file at the same time. If it is wrong, unclear or missing something you need, stop and report it as blocked (say what the contract should say); never work around it or change it.
+
 **WORKDIR:** if you are given a WORKDIR, it is this feature's own copy of the repo (a git worktree).
 Start every shell command with `cd <WORKDIR> && …`, use paths under WORKDIR for every
 Read/Edit/Write/Grep/Glob, and never read or change files in the main checkout or other worktrees.

@@ -163,11 +163,38 @@ would, taking screenshots as it goes. It works with:
 All of these are free and run on your machine. The first time a feature needs one, spec2pr asks if it
 may install it. Android needs Android Studio with an emulator, and iOS needs Xcode.
 
+## One feature, several repos
+
+Some features need changes in more than one repo, e.g. an Android app and the webview it opens.
+`/ship-program` handles that without mixing the repos up:
+
+```
+/ship-program PROJ-123 --repo android=~/code/my-app --repo webview=~/code/my-webviews
+```
+
+1. **One spec for all of them.** A parent session writes `contract.md` (every interface between the
+   repos: bridge methods, payloads, API calls, what happens when one side is older), one spec slice per
+   repo and `cross-repo.md` (end-to-end checks and merge order). The goldfish tests them together, and
+   you approve **once**.
+2. **One session per repo.** Each repo is built by a normal `/ship-feature PROJ-123 --program …` run in
+   its own worktree. Inside the cmux terminal each gets its own workspace (`PROJ-123 · android`,
+   `PROJ-123 · webview`), so you can watch and talk to each one separately. Without cmux, spec2pr prints
+   the command for each repo to run in its own terminal tab.
+3. **The contract is shared and read-only.** Repo sessions build exactly to it. If one needs it changed,
+   it asks the parent, the parent updates it (asking you when it's a product call) and tells every repo.
+4. **Join.** When every repo has opened its PR, the parent runs the cross-repo checks, comments each PR
+   with links to the others and the merge order, and updates the ticket once.
+
+See every repo's changes with `python3 <plugin>/scripts/program.py diff PROJ-123` (opens a cmux diff per
+repo) and progress with `program.py status PROJ-123`. Program files live in
+`~/.spec2pr/programs/<KEY>/`, and the program shows up on the dashboard as its own project.
+
 ## Commands
 
 | Command | What it does |
 |---|---|
 | `/ship-feature <ticket or name>` | Take a feature from start to pull request |
+| `/ship-program <ticket or name> --repo <path> --repo <path>` | One feature that needs changes in several repos: one spec, one approval, one session per repo |
 | `/verify-feature` | Check work in progress in the running app, then decide what's next |
 | `/feature-dashboard` | Open the dashboard |
 | `/feature-status` | A quick text summary of where a feature is |

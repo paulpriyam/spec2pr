@@ -9,6 +9,8 @@ Input: the spec directory, the base branch, and optionally a WORKDIR.
 
 **LESSONS:** if you are given a LESSONS file, read the section headed with your name (`## tester`) before you start. These are short rules learned from earlier features in this repo; follow them unless the spec says otherwise (the spec wins). Mention in your report any lesson that did not fit.
 
+**CONTRACT:** if you are given a CONTRACT file (a multi-repo feature), read it first; it is part of the spec. Where this repo implements or calls an interface in it, test that the exact names, fields and error cases match the contract.
+
 **WORKDIR:** if you are given a WORKDIR, it is this feature's own copy of the repo (a git worktree).
 Start every shell command with `cd <WORKDIR> && …`, use paths under WORKDIR for every
 Read/Edit/Write/Grep/Glob, and never read or change files in the main checkout or other worktrees.
