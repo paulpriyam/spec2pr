@@ -10,6 +10,8 @@ codebase — never by explanations from whoever wrote it.
 
 **LESSONS:** if you are given a LESSONS file, read the section headed with your name (`## pr-reviewer`) before you start. These are short rules learned from earlier features in this repo; follow them unless the spec says otherwise (the spec wins). Mention in your report any lesson that did not fit.
 
+**CONTRACT:** if you are given a CONTRACT file (a multi-repo feature), read it first; it is shared with other repos. Any difference between the diff and the contract (a renamed method, a changed field, an unhandled error case) is BLOCKING.
+
 **WORKDIR:** if you are given a WORKDIR, it is this feature's own copy of the repo (a git worktree).
 Start every shell command with `cd <WORKDIR> && …`, use paths under WORKDIR for every
 Read/Edit/Write/Grep/Glob, and never read or change files in the main checkout or other worktrees.

@@ -1,6 +1,6 @@
 ---
 description: Run the Elephant–Goldfish pipeline for a feature (Jira ticket, GitHub issue, or your own idea) - context, spec, goldfish test, build, test, review, PR
-argument-hint: <JIRA-KEY | #issue | feature-name> ["description" | --doc <file>] [--spec <dir>] [--adopt] [--from <phase>] [--fast] [--base <branch>] [--here] [--no-dashboard]
+argument-hint: <JIRA-KEY | #issue | feature-name> ["description" | --doc <file>] [--spec <dir>] [--adopt] [--from <phase>] [--fast] [--base <branch>] [--here] [--program <dir>] [--no-dashboard]
 model: opus
 ---
 # spec2pr orchestrator
@@ -22,8 +22,12 @@ Arguments: $ARGUMENTS
   progress, possibly without a spec). **FROM** = phase after `--from`.
 - FAST = `--fast` present. BASE = value after `--base`, else the repo's default branch.
 - HERE = `--here` present: work in the current checkout instead of a separate working copy.
+- PROGRAM = dir after `--program`: this run builds one repo's part of a multi-repo feature started by
+  `/ship-program`. See "Program mode" below; it changes several steps.
 - Ticket updates: only for SOURCE=jira (`jira-sync`). For github, post the same short progress
   comments with `gh issue comment` and link the PR with "Closes #n". For local, skip them.
+  In program mode there are **no** ticket updates at all (the parent does them for every repo), but
+  the PR still references the ticket/issue as usual.
 
 ## Dashboard
 Unless `--no-dashboard` is given, the dashboard opens automatically (a hook starts it when this
@@ -130,6 +134,42 @@ the app check may end as SKIP with a reason).
 If `STATE/KEY-verify/report.json` exists from an earlier app check (e.g. `/verify-feature`) and has
 FAIL ACs, give those ACs with their notes and evidence paths to the first implementer run as extra
 gaps, alongside the `[ ]` tasks.
+
+## Program mode (`--program <dir>`): one repo of a multi-repo feature
+A parent session (`/ship-program`) already wrote and got approval for the whole spec: a shared
+`contract.md` (every interface between the repos), one slice per repo and `cross-repo.md`. You build
+THIS repo's slice only. `PROG` = `python3 SCRIPTS/program.py`.
+- **Find your slice.** Read `PROGRAM/program.json`; your entry in `repos` is the one whose `path` equals
+  ROOT. NAME = its `name`. BASE = its `base` if set (else as usual). If no entry matches, stop and tell
+  the user this repo is not part of the program. Set `.title` = "<program.json title> · NAME" and
+  `.source` from program.json.
+- **Working copy** as usual (a worktree unless HERE). Then
+  `PROG sync-spec PROGRAM --repo NAME --dest <WT or ROOT>/specs/KEY` and set `.spec_dir` to that dir and
+  `.program = {"dir": PROGRAM, "name": NAME, "contract_version": …, "plugin_version": …, "plugin_root": …}`
+  in state (all three from its output; they feed the program's trial telemetry). The copy
+  lives in the repo so subagents stay inside WORKDIR and the PR carries its spec; the program dir stays
+  the source of truth.
+- **Skip all of Phase 1**: no context-analyst, no speckit, no goldfish test, no approval gate (the user
+  approved the whole program once). Leave `verdicts.goldfish` null, never PASS. Start at step 6
+  (FROM = `implement`). Run the lessons pick with `--text <spec_dir>` before step 6 so implementers
+  still get lessons.
+- **The contract is read-only.** Give every implementer, spec-guardian, tester, app-verifier and
+  pr-reviewer `CONTRACT=<spec_dir>/contract.md` with the line "Build exactly to this contract; it is
+  shared with other repos. If it is wrong or missing something, report blocked - never work around
+  it." spec-guardian and pr-reviewer also treat any mismatch with contract.md as a gap/BLOCKING.
+- **Contract change needed** (an implementer is blocked on it, or you find a gap): don't edit
+  contract.md. `ID=$(PROG request PROGRAM --repo NAME --text "<what is needed and why>")` (this also
+  nudges the parent), then start `PROG wait-reply PROGRAM <ID>` with **run_in_background** and end your
+  turn with "Waiting on the program owner for a contract change." When it returns (or the parent
+  messages you): if the contract changed, re-run `PROG sync-spec …` into the same spec_dir, update
+  `.program.contract_version`, and continue (re-run spec-guardian if code was already written).
+- **The parent may message you** (cmux): "Contract is now v<n>" → re-sync as above and re-run
+  spec-guardian; a failed cross-repo check → treat it like PR review comments on your open PR.
+- **Tell the parent about big moments**: when the PR is opened and when you become blocked,
+  `PROG notify PROGRAM --to parent --from NAME --text "<NAME>: <PR link | blocked at <phase>: <last>>"`.
+  It does nothing without cmux; the parent also reads your state file.
+- Questions (ask cards), loop limits, the commit gate, the app check, the retro and the worktree cleanup
+  work exactly as in a normal feature, in this repo.
 
 ## Working copy: one worktree per feature
 So that features never step on each other or on the user's main checkout, each feature is built in its
@@ -254,4 +294,5 @@ project no longer shows it as active. If there is a worktree, **(ask)** title "<
 remove its working copy?", choices "Remove it" (recommended) / "Keep it". On "Remove it", `cd ROOT`
 first, then `SCRIPTS/worktree.sh remove KEY`; it refuses if there are uncommitted changes: show them
 and ask before ever passing `--force`. The branch is kept.
-All state lives in THIS repo's `STATE`; never read or reuse another project's state.
+All state lives in THIS repo's `STATE`; never read or reuse another project's state. (In program mode
+you also read the program dir through `PROG`, but never edit it or another repo directly.)
