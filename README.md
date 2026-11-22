@@ -189,6 +189,14 @@ See every repo's changes with `python3 <plugin>/scripts/program.py diff PROJ-123
 repo) and progress with `program.py status PROJ-123`. Program files live in
 `~/.spec2pr/programs/<KEY>/`, and the program shows up on the dashboard as its own project.
 
+**Trial telemetry (local only).** While multi-repo support is new, every program records what happened
+in `~/.spec2pr/programs/<KEY>/telemetry/`: tool versions, every step, cmux errors, contract
+requests, and snapshots with each repo's state, its terminal text and a screenshot of the cmux window
+(taken ~90 seconds after launch, whenever something needs the parent, and at the end).
+`program.py report <KEY>` writes `REPORT.md` with the problems it spotted, plus a zip you can attach
+to an issue. Nothing is uploaded; secrets are blanked from terminal text, but screenshots can show
+code, so look before sharing. `SPEC2PR_TELEMETRY=off` turns it off.
+
 ## Commands
 
 | Command | What it does |

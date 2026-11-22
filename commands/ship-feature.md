@@ -145,7 +145,8 @@ THIS repo's slice only. `PROG` = `python3 SCRIPTS/program.py`.
   `.source` from program.json.
 - **Working copy** as usual (a worktree unless HERE). Then
   `PROG sync-spec PROGRAM --repo NAME --dest <WT or ROOT>/specs/KEY` and set `.spec_dir` to that dir and
-  `.program = {"dir": PROGRAM, "name": NAME, "contract_version": <from its output>}` in state. The copy
+  `.program = {"dir": PROGRAM, "name": NAME, "contract_version": …, "plugin_version": …, "plugin_root": …}`
+  in state (all three from its output; they feed the program's trial telemetry). The copy
   lives in the repo so subagents stay inside WORKDIR and the PR carries its spec; the program dir stays
   the source of truth.
 - **Skip all of Phase 1**: no context-analyst, no speckit, no goldfish test, no approval gate (the user

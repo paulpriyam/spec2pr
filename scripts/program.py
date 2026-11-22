@@ -16,6 +16,8 @@ available. Files are the source of truth; cmux messages are only wake-up nudges.
   program.py wait-reply PROGRAM ID [--timeout SECONDS]              -> child blocks until answered
   program.py notify PROGRAM --to NAME|parent|all --text T           -> cmux agent message (no-op without cmux)
   program.py diff PROGRAM                                           -> each child's branch diff (cmux viewer or stat)
+  program.py capture PROGRAM [--label L] [--no-shot]                -> local telemetry snapshot (see trial.py)
+  program.py report PROGRAM                                         -> telemetry/REPORT.md + a zip, all local
 
 PROGRAM is the program dir (~/.spec2pr/programs/<KEY>) or just its KEY. Layout:
   program.json   contract.md   cross-repo.md   <name>/{spec.md,plan.md,tasks.md}
@@ -33,6 +35,9 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import trial  # noqa: E402  (local trial telemetry: events, captures, screenshots, report)
 
 HOME = Path(os.environ.get("SPEC2PR_HOME", Path.home() / ".spec2pr"))
 PROGRAMS = HOME / "programs"
@@ -133,6 +138,8 @@ def cmd_init(a):
         save(p, {"key": key, "title": a.title or key, "source": a.source, "phase": "context",
                  "contract_version": 1, "parent_workspace": os.environ.get("CMUX_WORKSPACE_ID"),
                  "repos": [], "created": now()})
+    trial.record_env(p)
+    trial.log(p, "init", key=key, title=a.title, source=a.source)
     print(p)
 
 
@@ -148,6 +155,7 @@ def cmd_add_repo(a):
     prog["repos"] = [r for r in prog["repos"] if r["name"] != a.name] + [entry]
     (p / a.name).mkdir(exist_ok=True)
     save(p, prog)
+    trial.log(p, "add-repo", name=a.name, path=str(path), base=a.base)
     print(f"{a.name}: {path}")
 
 
@@ -201,7 +209,10 @@ def cmd_launch(a):
             out.append({"repo": r["name"], "run": f"cd {shlex.quote(r['path'])} && {cmd}"})
     if prog.get("phase") in (None, "context", "spec", "goldfish", "approval"):
         prog["phase"] = "building"
+    if use_cmux and any(c.get("launched") for c in out):
+        prog["launched_at"] = now()
     save(p, prog)
+    trial.log(p, "launch", cmux=use_cmux, children=out)
     print(json.dumps({"cmux": use_cmux, "children": out}, indent=2))
 
 
@@ -267,11 +278,21 @@ def cmd_wait(a):
             reasons.append("child-pr-opened")
         if s["children"] and all(ph in DONE_PHASES for ph in phases.values()):
             reasons.append("all-children-in-review")
+        # Telemetry: ~90s after launch, check every child session really started (hook bound, plugin).
+        la = prog.get("launched_at")
+        if la and not mem.get("started_checked") and time.time() - datetime.fromisoformat(la.replace("Z", "+00:00")).timestamp() > 90:
+            trial.capture(p, prog, s, "children-started")
+            mem["started_checked"] = True
+            write_atomic(seen_file, {**mem, "phases": seen, "requests": sorted(seen_reqs)})
         if reasons:
-            write_atomic(seen_file, {"phases": phases, "requests": sorted(seen_reqs | set(new_reqs))})
+            write_atomic(seen_file, {**mem, "phases": phases, "requests": sorted(seen_reqs | set(new_reqs))})
+            trial.log(p, "wait", reasons=reasons, phases=phases, new_requests=new_reqs)
+            if reasons != ["child-pr-opened"]:
+                trial.capture(p, prog, s, "-".join(reasons))
             print(json.dumps({"reasons": reasons, "new_requests": new_reqs, **s}, indent=2))
             return
         if deadline and time.time() > deadline:
+            trial.log(p, "wait", reasons=["timeout"], phases=phases)
             print(json.dumps({"reasons": ["timeout"], **s}, indent=2))
             return
         time.sleep(10)
@@ -293,7 +314,9 @@ def cmd_sync_spec(a):
         if (p / f).is_file():
             shutil.copy2(p / f, dest / f)
             copied.append(f)
-    print(json.dumps({"dest": str(dest), "copied": copied, "contract_version": prog.get("contract_version", 1)}))
+    trial.log(p, "sync-spec", repo=a.repo, contract_version=prog.get("contract_version", 1), copied=copied)
+    print(json.dumps({"dest": str(dest), "copied": copied, "contract_version": prog.get("contract_version", 1),
+                      "plugin_version": trial.plugin_version(), "plugin_root": str(trial.PLUGIN_ROOT)}))
 
 
 def cmd_request(a):
@@ -306,6 +329,7 @@ def cmd_request(a):
     cmux_message(prog.get("parent_workspace"),
                  f"spec2pr program {prog['key']}: {a.repo} asks for a contract change (request {rid}): {a.text}",
                  f"{prog['key']} · {a.repo}")
+    trial.log(p, "request", id=rid, repo=a.repo, text=a.text)
     print(rid)
 
 
@@ -323,6 +347,7 @@ def cmd_reply(a):
     cmux_message(r.get("workspace") or workspace_title(prog, r),
                  f"spec2pr program {prog['key']}: your contract request {a.id} is answered: {a.text}",
                  f"{prog['key']} · program")
+    trial.log(p, "reply", id=a.id, repo=q["repo"], text=a.text, contract_version=prog.get("contract_version"))
     print(json.dumps(q))
 
 
@@ -354,6 +379,7 @@ def cmd_notify(a):
         targets = [r.get("workspace") or workspace_title(prog, r) for r in rs]
         sender = f"{prog['key']} · program"
     sent = [t for t in targets if cmux_message(t, a.text, sender)]
+    trial.log(p, "notify", to=a.to, sent=len(sent), of=len(targets), cmux=has_cmux(), text=a.text[:200])
     print(json.dumps({"sent": len(sent), "of": len(targets), "cmux": has_cmux()}))
 
 
@@ -386,6 +412,22 @@ def cmd_diff(a):
             print(f"== {r['name']} ({wt}) ==\n{res.stdout or res.stderr}")
 
 
+def cmd_capture(a):
+    p = pdir(a.program)
+    prog = load(p)
+    d = trial.capture(p, prog, status_of(p, prog), a.label, shot=not a.no_shot)
+    print(d or "telemetry is off (SPEC2PR_TELEMETRY=off)")
+
+
+def cmd_report(a):
+    p = pdir(a.program)
+    prog = load(p)
+    if not trial.enabled():
+        die("telemetry is off (SPEC2PR_TELEMETRY=off)")
+    md, z, problems = trial.report(p, prog, status_of(p, prog))
+    print(json.dumps({"report": str(md), "zip": str(z), "problems": problems}, indent=2))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -400,6 +442,8 @@ def main():
     s = sub.add_parser("wait-reply"); s.add_argument("program"); s.add_argument("id"); s.add_argument("--timeout", type=int, default=0)
     s = sub.add_parser("notify"); s.add_argument("program"); s.add_argument("--to", required=True); s.add_argument("--text", required=True); s.add_argument("--from", dest="sender")
     s = sub.add_parser("diff"); s.add_argument("program")
+    s = sub.add_parser("capture"); s.add_argument("program"); s.add_argument("--label", default="manual"); s.add_argument("--no-shot", action="store_true")
+    s = sub.add_parser("report"); s.add_argument("program")
     a = ap.parse_args()
     globals()["cmd_" + a.cmd.replace("-", "_")](a)
 

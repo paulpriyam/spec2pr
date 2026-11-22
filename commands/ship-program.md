@@ -40,6 +40,18 @@ Children never change the contract themselves.
    `repos` list (use `PROG add-repo`), but do set its `"phase"` with jq when yours changes.
 If `P/program.json` already exists with launched children, you are resuming: skip to **Watch**.
 
+## Trial telemetry (local only)
+`PROG` records what happens in `P/telemetry/` (versions, every action, cmux errors, wait results,
+contract requests). `PROG wait` also captures a snapshot by itself ~90s after launch (did every
+repo's session really start, on which spec2pr copy?) and whenever it wakes you for something other
+than a single PR. Add a capture yourself with `PROG capture KEY --label <what happened>` at:
+after the approval gate (`spec-approved`), whenever something surprising happens (a child that never
+started, a cmux error, a contract request, a cross-repo check failure), and after the join (`joined`).
+Each capture saves every child's state, its terminal text and a cmux window screenshot.
+At the end (in-review, done, blocked or stopped) run `PROG report KEY` and tell the user the path of
+REPORT.md and the zip, the problems it lists, and that nothing left the laptop: screenshots and
+terminal text can show code, so they should look before sharing it. `SPEC2PR_TELEMETRY=off` disables it.
+
 ## Phase 1 — Think (one spec for every repo)
 1. **Repos.** For each REPO: `PROG add-repo KEY --name <name> --path <abs path> [--base <branch>]`.
    No `--repo` given → read the ticket/description, look at sibling folders of the current directory
